@@ -7,14 +7,15 @@ export function Header({
   onOpenSettings: () => void;
 }) {
   const [rulesOpen, setRulesOpen] = useState(false);
+  const baseUrl = import.meta.env.BASE_URL;
 
   return (
     <>
       <header className="sticky top-0 z-40 border-b border-purple/25 bg-bg/90 backdrop-blur-md">
         <div className="mx-auto flex max-w-[1400px] items-center justify-between gap-4 px-3 py-3 md:px-5">
-          <a href="/" className="flex min-w-0 items-center">
+          <a href={baseUrl} className="flex min-w-0 items-center">
             <img
-              src="/cuberush-logo.png"
+              src={`${baseUrl}cuberush-logo.png`}
               alt="CubeRush — Solve faster. Track better. Be legendary."
               className="h-14 w-auto max-w-[min(100%,420px)] shrink-0 object-contain object-left sm:h-16 md:h-[4.75rem]"
             />
