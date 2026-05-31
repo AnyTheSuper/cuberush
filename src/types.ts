@@ -1,0 +1,105 @@
+export type CubeEvent =
+  | '222'
+  | '333'
+  | '444'
+  | '555'
+  | '666'
+  | '777'
+  | '888'
+  | '999'
+  | '1010'
+  | '1111'
+  | '1212'
+  | '1313'
+  | '1414'
+  | '1515'
+  | '1616'
+  | '1717'
+  | '1818'
+  | '1919'
+  | 'pyra'
+  | 'mega'
+  | 'kilo'
+  | 'sq1'
+  | 'clock'
+  | 'skewb'
+  | 'mirror'
+  | 'gear'
+  | 'ivy'
+  | 'fisher'
+  | 'windmill'
+  | 'redi'
+  | 'dino'
+  | 'axis'
+  | 'cuboid_3x3x1'
+  | 'cuboid_3x3x2'
+  | 'cuboid_2x2x3'
+  | 'cuboid_1x2x3'
+  | 'special';
+
+export type Discipline =
+  | 'standard'
+  | 'blind'
+  | 'oneHanded'
+  | 'feet'
+  | 'multi'
+  | 'other';
+
+export type SolvePenalty = 'OK' | '+2' | 'DNF';
+
+export type Solve = {
+  id: string;
+  startedAt: number; // epoch ms
+  endedAt: number; // epoch ms
+  elapsedMs: number; // raw time without +2
+  penalty: SolvePenalty;
+  scramble: string;
+  event: CubeEvent;
+};
+
+export type Session = {
+  id: string;
+  name: string;
+  createdAt: number;
+  event: CubeEvent;
+  discipline: Discipline;
+  /** Multi-cube round order for this session (used for stats/times grouping). */
+  multiRoundEvents?: CubeEvent[];
+  solves: Solve[];
+};
+
+export type ThemeAccent = 'blue' | 'violet' | 'cyan' | 'green' | 'pink';
+
+export type Settings = {
+  inspectionEnabled: boolean;
+  /** Base inspection time (seconds) before +2 */
+  inspectionSeconds: number;
+  /** Extra inspection seconds per additional cube in multi */
+  inspectionBonusPerCubeSeconds: number;
+  soundEnabled: boolean;
+  timerFontScale: number; // 0.8..1.4
+  accent: ThemeAccent;
+};
+
+export type MultiSolvePlan = {
+  /** 0-based index of next cube in the one-round multi list */
+  index: number;
+  /** Cubes to solve once each, in order (at least one) */
+  events: CubeEvent[];
+};
+
+export type TimerPhase =
+  | 'idle'
+  | 'armed'
+  | 'inspecting'
+  | 'armedToStart'
+  | 'running';
+
+export type TimerState = {
+  phase: TimerPhase;
+  armedAt: number | null;
+  inspectionStartedAt: number | null;
+  runningStartedAt: number | null;
+  nowMs: number; // updated on RAF/interval for display
+};
+

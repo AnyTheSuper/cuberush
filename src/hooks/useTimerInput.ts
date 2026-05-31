@@ -1,0 +1,302 @@
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+} from 'react';
+import { isMultiComplete, isLiveMultiMode } from '../lib/events';
+import {
+  getInspectionLimits,
+  inspectionPenaltyFromElapsed,
+} from '../lib/inspection';
+import { useAppStore } from '../store/useAppStore';
+import type { SolvePenalty, TimerPhase } from '../types';
+
+function isEditableTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  return (
+    tag === 'INPUT' ||
+    tag === 'TEXTAREA' ||
+    tag === 'SELECT' ||
+    target.isContentEditable
+  );
+}
+
+export function useTimerInput() {
+  const timer = useAppStore((s) => s.timer);
+  const timerSetPhase = useAppStore((s) => s.timerSetPhase);
+  const addSolve = useAppStore((s) => s.addSolve);
+  const advanceMultiSolve = useAppStore((s) => s.advanceMultiSolve);
+  const resetMultiSolve = useAppStore((s) => s.resetMultiSolve);
+  const setNowMs = useAppStore((s) => s.setNowMs);
+
+  const inputHeldRef = useRef(false);
+  const solveStartedEpochRef = useRef<number | null>(null);
+  const solveStartedPerfRef = useRef<number | null>(null);
+  const pendingPenaltyRef = useRef<SolvePenalty>('OK');
+  const handlersRef = useRef({
+    onPressDown: () => {},
+    onPressUp: () => {},
+    cancelActiveTimer: () => {},
+  });
+
+  useEffect(() => {
+    let raf = 0;
+    const tick = () => {
+      setNowMs(performance.now());
+      raf = requestAnimationFrame(tick);
+    };
+
+    const needsLive =
+      timer.phase === 'running' || timer.phase === 'inspecting';
+    if (needsLive) raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [setNowMs, timer.phase]);
+
+  useEffect(() => {
+    const cancelActiveTimer = () => {
+      inputHeldRef.current = false;
+      pendingPenaltyRef.current = 'OK';
+      solveStartedEpochRef.current = null;
+      solveStartedPerfRef.current = null;
+      timerSetPhase('idle', {
+        armedAt: null,
+        inspectionStartedAt: null,
+        runningStartedAt: null,
+      });
+    };
+
+    const onEscape = (e: KeyboardEvent) => {
+      if (e.code !== 'Escape' && e.key !== 'Escape') return;
+      if (document.querySelector('[data-modal-overlay]')) return;
+
+      const phase = useAppStore.getState().timer.phase;
+      if (phase === 'idle') return;
+
+      e.preventDefault();
+      e.stopPropagation();
+      cancelActiveTimer();
+    };
+
+    window.addEventListener('keydown', onEscape, { capture: true });
+    return () => window.removeEventListener('keydown', onEscape, { capture: true });
+  }, [timerSetPhase]);
+
+  useEffect(() => {
+    const cancelActiveTimer = () => {
+      inputHeldRef.current = false;
+      pendingPenaltyRef.current = 'OK';
+      solveStartedEpochRef.current = null;
+      solveStartedPerfRef.current = null;
+      timerSetPhase('idle', {
+        armedAt: null,
+        inspectionStartedAt: null,
+        runningStartedAt: null,
+      });
+    };
+
+    const prepareRound = () => {
+      const st = useAppStore.getState();
+      if (isMultiComplete(st.multiSolve)) {
+        resetMultiSolve();
+      }
+    };
+
+    const onPressDown = () => {
+      if (inputHeldRef.current) return;
+      inputHeldRef.current = true;
+
+      prepareRound();
+
+      const st = useAppStore.getState();
+      const phase: TimerPhase = st.timer.phase;
+      const now = performance.now();
+
+      if (phase === 'idle') {
+        timerSetPhase('armed', { armedAt: now });
+        return;
+      }
+
+      if (phase === 'inspecting') {
+        timerSetPhase('armedToStart', { armedAt: now });
+        return;
+      }
+
+      if (phase === 'running') {
+        const startedPerf = solveStartedPerfRef.current;
+        const startedEpoch = solveStartedEpochRef.current;
+        if (startedPerf == null || startedEpoch == null) return;
+
+        const endedEpoch = Date.now();
+        const elapsedMs = Math.max(0, now - startedPerf);
+        const penalty = pendingPenaltyRef.current;
+        const session = st.sessions.find((x) => x.id === st.currentSessionId);
+        const multiMode = isLiveMultiMode(session, st.multiSolve);
+        const roundStartedAt = st.timer.runningStartedAt;
+
+        addSolve({
+          startedAt: startedEpoch,
+          endedAt: endedEpoch,
+          elapsedMs,
+          penalty,
+        });
+        advanceMultiSolve();
+
+        const after = useAppStore.getState();
+        const roundDone = isMultiComplete(after.multiSolve);
+
+        if (multiMode && !roundDone && roundStartedAt != null) {
+          pendingPenaltyRef.current = 'OK';
+          solveStartedEpochRef.current = Date.now();
+          solveStartedPerfRef.current = now;
+          timerSetPhase('running', {
+            runningStartedAt: roundStartedAt,
+            armedAt: null,
+            inspectionStartedAt: null,
+          });
+          return;
+        }
+
+        pendingPenaltyRef.current = 'OK';
+        solveStartedEpochRef.current = null;
+        solveStartedPerfRef.current = null;
+        timerSetPhase('idle', {
+          armedAt: null,
+          inspectionStartedAt: null,
+          runningStartedAt: null,
+        });
+      }
+    };
+
+    const onPressUp = () => {
+      if (!inputHeldRef.current) return;
+      inputHeldRef.current = false;
+
+      prepareRound();
+
+      const st = useAppStore.getState();
+      const phase: TimerPhase = st.timer.phase;
+      const now = performance.now();
+      const cubeCount = st.multiSolve.events.length;
+      const limits = getInspectionLimits(st.settings, cubeCount);
+
+      if (phase === 'armed') {
+        if (st.settings.inspectionEnabled) {
+          pendingPenaltyRef.current = 'OK';
+          timerSetPhase('inspecting', {
+            inspectionStartedAt: now,
+            armedAt: null,
+          });
+          return;
+        }
+
+        pendingPenaltyRef.current = 'OK';
+        solveStartedEpochRef.current = Date.now();
+        solveStartedPerfRef.current = now;
+        timerSetPhase('running', {
+          runningStartedAt: now,
+          armedAt: null,
+          inspectionStartedAt: null,
+        });
+        return;
+      }
+
+      if (phase === 'armedToStart') {
+        const inspStart = st.timer.inspectionStartedAt ?? now;
+        const inspElapsed = now - inspStart;
+        pendingPenaltyRef.current = inspectionPenaltyFromElapsed(
+          inspElapsed,
+          limits,
+        );
+
+        solveStartedEpochRef.current = Date.now();
+        solveStartedPerfRef.current = now;
+        timerSetPhase('running', {
+          runningStartedAt: now,
+          armedAt: null,
+        });
+      }
+    };
+
+    handlersRef.current = { onPressDown, onPressUp, cancelActiveTimer };
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'Escape' || e.key === 'Escape') return;
+
+      if (isEditableTarget(e.target)) return;
+      if (e.code === 'Space') e.preventDefault();
+      if (e.repeat) return;
+
+      onPressDown();
+    };
+
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Escape' || e.key === 'Escape') return;
+      if (isEditableTarget(e.target)) return;
+      if (e.code === 'Space') e.preventDefault();
+      if (e.repeat) return;
+
+      onPressUp();
+    };
+
+    window.addEventListener('keydown', onKeyDown, { passive: false });
+    window.addEventListener('keyup', onKeyUp, { passive: false });
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+    };
+  }, [addSolve, advanceMultiSolve, resetMultiSolve, timerSetPhase]);
+
+  const derived = useMemo(() => {
+    const st = useAppStore.getState();
+    const now = timer.nowMs;
+    const inspStart = timer.inspectionStartedAt;
+    const runStart = timer.runningStartedAt;
+    const cubeCount = st.multiSolve.events.length;
+    const limits = getInspectionLimits(st.settings, cubeCount);
+
+    const inspectionElapsed = inspStart == null ? 0 : Math.max(0, now - inspStart);
+    const inspectionRemainingMs = limits.limitMs - inspectionElapsed;
+    const inspectionPenalty: SolvePenalty = inspectionPenaltyFromElapsed(
+      inspectionElapsed,
+      limits,
+    );
+
+    const runningElapsedMs = runStart == null ? 0 : Math.max(0, now - runStart);
+
+    return {
+      inspectionRemainingMs,
+      inspectionPenalty,
+      runningElapsedMs,
+      inspectionLimitSec: limits.limitMs / 1000,
+    };
+  }, [timer.inspectionStartedAt, timer.nowMs, timer.runningStartedAt]);
+
+  const onPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    handlersRef.current.onPressDown();
+  }, []);
+
+  const onPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    handlersRef.current.onPressUp();
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+  }, []);
+
+  const onPointerCancel = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    handlersRef.current.onPressUp();
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+  }, []);
+
+  return { ...derived, onPointerDown, onPointerUp, onPointerCancel };
+}
+
+/** @deprecated use useTimerInput */
+export const useKeyboardTimer = useTimerInput;

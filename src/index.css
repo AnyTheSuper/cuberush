@@ -1,0 +1,78 @@
+@import 'tailwindcss';
+
+@theme {
+  /* Backgrounds */
+  --color-bg: #090b16;
+  --color-bg-panel: #12142b;
+  --color-bg-panel2: #181b35;
+  --color-bg-inset: #0f1120;
+
+  /* Text */
+  --color-fg: #f1f5f9;
+  --color-fg-muted: #94a3b8;
+  --color-fg-subtle: #64748b;
+
+  /* Borders */
+  --color-stroke: #2a2d4a;
+
+  /* Purple accent */
+  --color-purple: #8b5cf6;
+  --color-purple-light: #a78bfa;
+  --color-purple-dark: #6d28d9;
+
+  /* Stat colors */
+  --color-stat-green: #4ade80;
+  --color-stat-blue: #38bdf8;
+  --color-stat-pink: #f472b6;
+  --color-stat-yellow: #facc15;
+
+  /* Status */
+  --color-good: #4ade80;
+  --color-warn: #facc15;
+  --color-bad: #fb7185;
+
+  /* Legacy accent alias */
+  --color-accent: #8b5cf6;
+  --color-accent-2: #a78bfa;
+
+  /* Radius */
+  --radius-xl2: 0.875rem;
+
+  /* Shadows */
+  --shadow-panel: 0 8px 32px rgba(0, 0, 0, 0.45);
+  --shadow-purple: 0 0 24px rgba(139, 92, 246, 0.25);
+  --shadow-yellow: 0 0 16px rgba(250, 204, 21, 0.35);
+
+  /* Gradients */
+  --background-image-timer-gradient: linear-gradient(
+    135deg,
+    #4c1d95 0%,
+    #312e81 35%,
+    #1e1b4b 65%,
+    #0f172a 100%
+  );
+  --background-image-btn-purple: linear-gradient(
+    135deg,
+    #7c3aed 0%,
+    #6d28d9 50%,
+    #5b21b6 100%
+  );
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Arial,
+    'Noto Sans', 'Apple Color Emoji', 'Segoe UI Emoji';
+}
+
+::selection {
+  background: rgba(139, 92, 246, 0.35);
+}
