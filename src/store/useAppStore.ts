@@ -10,7 +10,7 @@ import type {
   TimerState,
 } from '../types';
 import { inferMultiRoundEvents, multiSolveEventAt } from '../lib/events';
-import { generateScramble } from '../lib/scramble';
+import { generateScramble, shouldAutoNextScramble } from '../lib/scramble';
 
 const LS_KEY = 'cube-timer:v1';
 
@@ -415,8 +415,11 @@ export const useAppStore = create<AppState>((set, get) => {
         const sessions = st.sessions.map((s) =>
           s.id === session.id ? { ...s, solves: [solve, ...s.solves] } : s,
         );
+        const scrambleByEvent = shouldAutoNextScramble(event)
+          ? { ...st.scrambleByEvent, [event]: generateScramble(event) }
+          : st.scrambleByEvent;
         queueMicrotask(persistNow);
-        return { sessions, lastSolveId: solve.id };
+        return { sessions, lastSolveId: solve.id, scrambleByEvent };
       }),
 
     deleteSolve: (solveId) =>

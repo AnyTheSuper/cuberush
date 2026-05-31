@@ -77,3 +77,7 @@ export function generateScramble(event: CubeEvent) {
   return 'Coming soon';
 }
 
+export function shouldAutoNextScramble(event: CubeEvent) {
+  return event === '222' || event === '333' || event === '444';
+}
+
