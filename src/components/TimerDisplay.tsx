@@ -27,6 +27,7 @@ export function TimerDisplay() {
     inspectionPenalty,
     runningElapsedMs,
     inspectionLimitSec,
+    surfaceRef,
     onPointerDown,
     onPointerUp,
     onPointerCancel,
@@ -88,22 +89,23 @@ export function TimerDisplay() {
             : 'text-white/90';
 
   const hintText = multiDone
-    ? 'Press a key or click here to start the next round'
+    ? 'Tap here or press a key to start the next round'
     : timer.phase === 'running' && multiMode
-      ? 'Press Space or click to finish this cube · Esc to cancel'
+      ? 'Tap to finish this cube'
       : timer.phase === 'inspecting' || timer.phase === 'armedToStart'
-        ? 'Press Esc to cancel inspection'
-        : 'Press Esc to cancel · Hold a key or click here, release to start';
+        ? 'Tap and hold, then release to start'
+        : 'Tap and hold the timer, release to start · Tap again to stop';
 
   return (
     <div
-      className="grid h-full min-h-[280px] cursor-pointer place-items-center px-4 py-10 touch-none select-none"
+      ref={surfaceRef}
+      className="grid h-full min-h-[280px] cursor-pointer place-items-center px-4 py-10 touch-none select-none [-webkit-tap-highlight-color:transparent] [-webkit-touch-callout:none]"
       onPointerDown={onPointerDown}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerCancel}
       role="button"
-      tabIndex={-1}
-      aria-label="Timer — click and hold to start and stop"
+      tabIndex={0}
+      aria-label="Timer — tap and hold to start and stop"
     >
       <div className="pointer-events-none text-center">
         <div

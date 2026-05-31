@@ -35,6 +35,8 @@ export function useTimerInput() {
   const solveStartedEpochRef = useRef<number | null>(null);
   const solveStartedPerfRef = useRef<number | null>(null);
   const pendingPenaltyRef = useRef<SolvePenalty>('OK');
+  const touchActiveRef = useRef(false);
+  const surfaceRef = useRef<HTMLDivElement | null>(null);
   const handlersRef = useRef({
     onPressDown: () => {},
     onPressUp: () => {},
@@ -248,6 +250,42 @@ export function useTimerInput() {
     };
   }, [addSolve, advanceMultiSolve, resetMultiSolve, timerSetPhase]);
 
+  useEffect(() => {
+    const el = surfaceRef.current;
+    if (!el) return;
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length > 1) return;
+      e.preventDefault();
+      if (touchActiveRef.current) return;
+      touchActiveRef.current = true;
+      handlersRef.current.onPressDown();
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      e.preventDefault();
+      if (!touchActiveRef.current) return;
+      touchActiveRef.current = false;
+      handlersRef.current.onPressUp();
+    };
+
+    const onTouchCancel = () => {
+      if (!touchActiveRef.current) return;
+      touchActiveRef.current = false;
+      handlersRef.current.onPressUp();
+    };
+
+    el.addEventListener('touchstart', onTouchStart, { passive: false });
+    el.addEventListener('touchend', onTouchEnd, { passive: false });
+    el.addEventListener('touchcancel', onTouchCancel, { passive: false });
+
+    return () => {
+      el.removeEventListener('touchstart', onTouchStart);
+      el.removeEventListener('touchend', onTouchEnd);
+      el.removeEventListener('touchcancel', onTouchCancel);
+    };
+  }, []);
+
   const derived = useMemo(() => {
     const st = useAppStore.getState();
     const now = timer.nowMs;
@@ -274,13 +312,19 @@ export function useTimerInput() {
   }, [timer.inspectionStartedAt, timer.nowMs, timer.runningStartedAt]);
 
   const onPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === 'touch') return;
     if (e.button !== 0) return;
     e.preventDefault();
-    e.currentTarget.setPointerCapture(e.pointerId);
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // Some browsers reject capture; mouse path still works.
+    }
     handlersRef.current.onPressDown();
   }, []);
 
   const onPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === 'touch') return;
     e.preventDefault();
     handlersRef.current.onPressUp();
     if (e.currentTarget.hasPointerCapture(e.pointerId)) {
@@ -289,13 +333,14 @@ export function useTimerInput() {
   }, []);
 
   const onPointerCancel = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === 'touch') return;
     handlersRef.current.onPressUp();
     if (e.currentTarget.hasPointerCapture(e.pointerId)) {
       e.currentTarget.releasePointerCapture(e.pointerId);
     }
   }, []);
 
-  return { ...derived, onPointerDown, onPointerUp, onPointerCancel };
+  return { ...derived, surfaceRef, onPointerDown, onPointerUp, onPointerCancel };
 }
 
 /** @deprecated use useTimerInput */
