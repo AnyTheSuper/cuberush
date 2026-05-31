@@ -11,7 +11,7 @@ export function Header({
 
   return (
     <>
-      <header className="sticky top-0 z-40 border-b border-purple/25 bg-bg/90 backdrop-blur-md">
+      <header className="sticky top-0 z-40 border-b border-purple/25 bg-bg backdrop-blur-md">
         <div className="mx-auto flex max-w-[1400px] items-center justify-between gap-4 px-3 py-3 md:px-5">
           <a href={baseUrl} className="flex min-w-0 items-center">
             <img
