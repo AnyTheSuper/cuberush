@@ -99,7 +99,7 @@ export function TimerDisplay() {
   return (
     <div
       ref={surfaceRef}
-      className="grid h-full min-h-[280px] cursor-pointer place-items-center px-4 py-10 touch-none select-none [-webkit-tap-highlight-color:transparent] [-webkit-touch-callout:none]"
+      className="grid h-full min-h-[min(50vh,420px)] cursor-pointer place-items-center px-4 py-10 touch-manipulation select-none [-webkit-tap-highlight-color:transparent] [-webkit-touch-callout:none]"
       onPointerDown={onPointerDown}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerCancel}

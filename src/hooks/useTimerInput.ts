@@ -36,7 +36,7 @@ export function useTimerInput() {
   const solveStartedPerfRef = useRef<number | null>(null);
   const pendingPenaltyRef = useRef<SolvePenalty>('OK');
   const touchActiveRef = useRef(false);
-  const surfaceRef = useRef<HTMLDivElement | null>(null);
+  const surfaceCleanupRef = useRef<(() => void) | null>(null);
   const handlersRef = useRef({
     onPressDown: () => {},
     onPressUp: () => {},
@@ -59,6 +59,7 @@ export function useTimerInput() {
   useEffect(() => {
     const cancelActiveTimer = () => {
       inputHeldRef.current = false;
+      touchActiveRef.current = false;
       pendingPenaltyRef.current = 'OK';
       solveStartedEpochRef.current = null;
       solveStartedPerfRef.current = null;
@@ -86,8 +87,13 @@ export function useTimerInput() {
   }, [timerSetPhase]);
 
   useEffect(() => {
-    const cancelActiveTimer = () => {
+    const releaseInput = () => {
       inputHeldRef.current = false;
+      touchActiveRef.current = false;
+    };
+
+    const cancelActiveTimer = () => {
+      releaseInput();
       pendingPenaltyRef.current = 'OK';
       solveStartedEpochRef.current = null;
       solveStartedPerfRef.current = null;
@@ -148,6 +154,8 @@ export function useTimerInput() {
         const after = useAppStore.getState();
         const roundDone = isMultiComplete(after.multiSolve);
 
+        releaseInput();
+
         if (multiMode && !roundDone && roundStartedAt != null) {
           pendingPenaltyRef.current = 'OK';
           solveStartedEpochRef.current = Date.now();
@@ -174,6 +182,7 @@ export function useTimerInput() {
     const onPressUp = () => {
       if (!inputHeldRef.current) return;
       inputHeldRef.current = false;
+      touchActiveRef.current = false;
 
       prepareRound();
 
@@ -250,13 +259,24 @@ export function useTimerInput() {
     };
   }, [addSolve, advanceMultiSolve, resetMultiSolve, timerSetPhase]);
 
-  useEffect(() => {
-    const el = surfaceRef.current;
-    if (!el) return;
+  const surfaceRef = useCallback((node: HTMLDivElement | null) => {
+    surfaceCleanupRef.current?.();
+    surfaceCleanupRef.current = null;
+
+    if (!node) return;
 
     const onTouchStart = (e: TouchEvent) => {
       if (e.touches.length > 1) return;
       e.preventDefault();
+
+      const phase = useAppStore.getState().timer.phase;
+
+      if (phase === 'running') {
+        touchActiveRef.current = true;
+        handlersRef.current.onPressDown();
+        return;
+      }
+
       if (touchActiveRef.current) return;
       touchActiveRef.current = true;
       handlersRef.current.onPressDown();
@@ -264,6 +284,14 @@ export function useTimerInput() {
 
     const onTouchEnd = (e: TouchEvent) => {
       e.preventDefault();
+
+      const phase = useAppStore.getState().timer.phase;
+
+      if (phase === 'running' && !touchActiveRef.current) {
+        handlersRef.current.onPressDown();
+        return;
+      }
+
       if (!touchActiveRef.current) return;
       touchActiveRef.current = false;
       handlersRef.current.onPressUp();
@@ -272,17 +300,19 @@ export function useTimerInput() {
     const onTouchCancel = () => {
       if (!touchActiveRef.current) return;
       touchActiveRef.current = false;
+      inputHeldRef.current = false;
       handlersRef.current.onPressUp();
     };
 
-    el.addEventListener('touchstart', onTouchStart, { passive: false });
-    el.addEventListener('touchend', onTouchEnd, { passive: false });
-    el.addEventListener('touchcancel', onTouchCancel, { passive: false });
+    const opts: AddEventListenerOptions = { passive: false };
+    node.addEventListener('touchstart', onTouchStart, opts);
+    node.addEventListener('touchend', onTouchEnd, opts);
+    node.addEventListener('touchcancel', onTouchCancel, opts);
 
-    return () => {
-      el.removeEventListener('touchstart', onTouchStart);
-      el.removeEventListener('touchend', onTouchEnd);
-      el.removeEventListener('touchcancel', onTouchCancel);
+    surfaceCleanupRef.current = () => {
+      node.removeEventListener('touchstart', onTouchStart);
+      node.removeEventListener('touchend', onTouchEnd);
+      node.removeEventListener('touchcancel', onTouchCancel);
     };
   }, []);
 
