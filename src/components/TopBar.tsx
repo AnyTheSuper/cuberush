@@ -128,7 +128,7 @@ export function TopBar() {
             </div>
           </div>
 
-          <div className="rounded-xl border border-purple/20 bg-bg-inset px-4 py-3 font-mono text-sm leading-relaxed text-fg">
+          <div className="rounded-xl border border-purple/20 bg-bg-inset px-4 py-3 font-mono text-sm leading-relaxed whitespace-pre-wrap text-fg">
             {scramble}
           </div>
         </div>

@@ -10,7 +10,12 @@ import type {
   TimerState,
 } from '../types';
 import { inferMultiRoundEvents, multiSolveEventAt } from '../lib/events';
-import { generateScramble, shouldAutoNextScramble } from '../lib/scramble';
+import {
+  buildDefaultScrambleMap,
+  generateScramble,
+  generateScrambleSync,
+  shouldAutoNextScramble,
+} from '../lib/scramble';
 
 const LS_KEY = 'cube-timer:v1';
 
@@ -139,6 +144,9 @@ type AppState = Persisted & {
   deleteSolves: (solveIds: string[]) => void;
 
   resetAllData: () => void;
+
+  refreshOfficialScramble: (event: CubeEvent) => void;
+  hydrateOfficialScrambles: () => void;
 };
 
 function normalizeSession(session: Session): Session {
@@ -179,9 +187,10 @@ function syncSessionToEvent(
   );
   const scrambleByEvent = {
     ...st.scrambleByEvent,
-    [event]: freshScramble
-      ? generateScramble(event)
-      : (st.scrambleByEvent[event] ?? generateScramble(event)),
+    [event]:
+      freshScramble || !st.scrambleByEvent[event]
+        ? generateScrambleSync(event)
+        : st.scrambleByEvent[event],
   };
   return { sessions, scrambleByEvent };
 }
@@ -213,45 +222,7 @@ function initialPersisted(): Persisted {
     currentSessionId: s.id,
     settings: defaultSettings(),
     multiSolve: { index: 0, events: ['333'] },
-    scrambleByEvent: {
-      '222': generateScramble('222'),
-      '333': generateScramble('333'),
-      '444': generateScramble('444'),
-      '555': generateScramble('555'),
-      '666': generateScramble('666'),
-      '777': generateScramble('777'),
-      '888': generateScramble('888'),
-      '999': generateScramble('999'),
-      '1010': generateScramble('1010'),
-      '1111': generateScramble('1111'),
-      '1212': generateScramble('1212'),
-      '1313': generateScramble('1313'),
-      '1414': generateScramble('1414'),
-      '1515': generateScramble('1515'),
-      '1616': generateScramble('1616'),
-      '1717': generateScramble('1717'),
-      '1818': generateScramble('1818'),
-      '1919': generateScramble('1919'),
-      pyra: generateScramble('pyra'),
-      mega: generateScramble('mega'),
-      kilo: generateScramble('kilo'),
-      sq1: generateScramble('sq1'),
-      clock: generateScramble('clock'),
-      skewb: generateScramble('skewb'),
-      mirror: generateScramble('mirror'),
-      gear: generateScramble('gear'),
-      ivy: generateScramble('ivy'),
-      fisher: generateScramble('fisher'),
-      windmill: generateScramble('windmill'),
-      redi: generateScramble('redi'),
-      dino: generateScramble('dino'),
-      axis: generateScramble('axis'),
-      cuboid_3x3x1: generateScramble('cuboid_3x3x1'),
-      cuboid_3x3x2: generateScramble('cuboid_3x3x2'),
-      cuboid_2x2x3: generateScramble('cuboid_2x2x3'),
-      cuboid_1x2x3: generateScramble('cuboid_1x2x3'),
-      special: generateScramble('special'),
-    },
+    scrambleByEvent: buildDefaultScrambleMap(),
   };
 }
 
@@ -277,16 +248,18 @@ export const useAppStore = create<AppState>((set, get) => {
 
     setNowMs: (nowMs) => set((st) => ({ timer: { ...st.timer, nowMs } })),
 
-    setEvent: (event) =>
+    setEvent: (event) => {
       set((st) => {
-        const synced = syncSessionToEvent(st, st.currentSessionId, event);
+        const synced = syncSessionToEvent(st, st.currentSessionId, event, true);
         const multiSolve =
           st.multiSolve.events.length <= 1
             ? { ...st.multiSolve, events: [event] }
             : st.multiSolve;
         queueMicrotask(persistNow);
         return { ...synced, multiSolve };
-      }),
+      });
+      get().refreshOfficialScramble(event);
+    },
 
     setDiscipline: (discipline) =>
       set((st) => {
@@ -297,17 +270,18 @@ export const useAppStore = create<AppState>((set, get) => {
         return { sessions };
       }),
 
-    nextScramble: () =>
-      set((st) => {
-        const event = st.sessions.find((s) => s.id === st.currentSessionId)
-          ?.event ?? '333';
-        const scrambleByEvent = {
+    nextScramble: () => {
+      const event =
+        get().sessions.find((s) => s.id === get().currentSessionId)?.event ??
+        '333';
+      set((st) => ({
+        scrambleByEvent: {
           ...st.scrambleByEvent,
-          [event]: generateScramble(event),
-        };
-        queueMicrotask(persistNow);
-        return { scrambleByEvent };
-      }),
+          [event]: generateScrambleSync(event),
+        },
+      }));
+      get().refreshOfficialScramble(event);
+    },
 
     setSettings: (patch) =>
       set((st) => {
@@ -378,26 +352,31 @@ export const useAppStore = create<AppState>((set, get) => {
         return { multiSolve, ...synced, sessions };
       }),
 
-    resetMultiSolve: () =>
+    resetMultiSolve: () => {
+      const active = multiSolveEventAt(get().multiSolve.events, 0);
       set((st) => {
         const multiSolve = { ...st.multiSolve, index: 0 };
-        const active = multiSolveEventAt(multiSolve.events, 0);
         const synced = syncSessionToEvent(st, st.currentSessionId, active, true);
         queueMicrotask(persistNow);
         return { multiSolve, ...synced };
-      }),
+      });
+      get().refreshOfficialScramble(active);
+    },
 
-    advanceMultiSolve: () =>
-      set((st) => {
-        const { events, index } = st.multiSolve;
-        const nextIdx = index + 1;
-        if (nextIdx >= events.length) {
+    advanceMultiSolve: () => {
+      const { events, index } = get().multiSolve;
+      const nextIdx = index + 1;
+      if (nextIdx >= events.length) {
+        set((st) => {
           const multiSolve = { ...st.multiSolve, index: events.length };
           queueMicrotask(persistNow);
           return { multiSolve };
-        }
+        });
+        return;
+      }
+      const active = multiSolveEventAt(events, nextIdx);
+      set((st) => {
         const multiSolve = { ...st.multiSolve, index: nextIdx };
-        const active = multiSolveEventAt(events, nextIdx);
         const synced = syncSessionToEvent(
           { ...st, multiSolve },
           st.currentSessionId,
@@ -406,7 +385,9 @@ export const useAppStore = create<AppState>((set, get) => {
         );
         queueMicrotask(persistNow);
         return { multiSolve, ...synced };
-      }),
+      });
+      get().refreshOfficialScramble(active);
+    },
 
     timerSetPhase: (phase, patch) =>
       set((st) => ({
@@ -418,7 +399,8 @@ export const useAppStore = create<AppState>((set, get) => {
         const session = st.sessions.find((s) => s.id === st.currentSessionId);
         if (!session) return {};
         const event = session.event;
-        const scramble = st.scrambleByEvent[event] ?? generateScramble(event);
+        const scramble =
+          st.scrambleByEvent[event] ?? generateScrambleSync(event);
         const solve: Solve = {
           id: uid(),
           startedAt,
@@ -432,9 +414,12 @@ export const useAppStore = create<AppState>((set, get) => {
           s.id === session.id ? { ...s, solves: [solve, ...s.solves] } : s,
         );
         const scrambleByEvent = shouldAutoNextScramble(event)
-          ? { ...st.scrambleByEvent, [event]: generateScramble(event) }
+          ? { ...st.scrambleByEvent, [event]: generateScrambleSync(event) }
           : st.scrambleByEvent;
         queueMicrotask(persistNow);
+        if (shouldAutoNextScramble(event)) {
+          queueMicrotask(() => get().refreshOfficialScramble(event));
+        }
         return { sessions, lastSolveId: solve.id, scrambleByEvent };
       }),
 
@@ -484,6 +469,24 @@ export const useAppStore = create<AppState>((set, get) => {
         timer: defaultTimerState(),
         lastSolveId: null,
       });
+      queueMicrotask(() => get().hydrateOfficialScrambles());
+    },
+
+    refreshOfficialScramble: (event) => {
+      void generateScramble(event).then((scramble) => {
+        set((st) => ({
+          scrambleByEvent: { ...st.scrambleByEvent, [event]: scramble },
+        }));
+        queueMicrotask(persistNow);
+      });
+    },
+
+    hydrateOfficialScrambles: () => {
+      const st = get();
+      const events = new Set<CubeEvent>();
+      for (const s of st.sessions) events.add(s.event);
+      for (const e of st.multiSolve.events) events.add(e);
+      for (const event of events) get().refreshOfficialScramble(event);
     },
   };
 });

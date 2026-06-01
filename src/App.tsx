@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useAppStore } from './store/useAppStore';
 import { AuthGate } from './components/AuthGate';
 import { GraphPanel } from './components/GraphPanel';
 import { Header } from './components/Header';
@@ -13,6 +14,12 @@ import { useIsSignedIn } from './store/useAuthStore';
 export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const signedIn = useIsSignedIn();
+  const hydrateOfficialScrambles = useAppStore((s) => s.hydrateOfficialScrambles);
+
+  useEffect(() => {
+    if (!signedIn) return;
+    hydrateOfficialScrambles();
+  }, [hydrateOfficialScrambles, signedIn]);
 
   if (!signedIn) {
     return <AuthGate />;
