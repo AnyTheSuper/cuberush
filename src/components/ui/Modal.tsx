@@ -27,9 +27,11 @@ export function Modal({
     <div
       className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm"
       data-modal-overlay=""
-      onMouseDown={onClose}
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
     >
-      <div className="w-full max-w-lg" onMouseDown={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-lg">
         <Card title={title} className="overflow-hidden">
           {children}
         </Card>

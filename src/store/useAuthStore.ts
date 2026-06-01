@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import {
+  authCryptoErrorMessage,
   hashPassword,
+  isAuthCryptoAvailable,
   readPhotoFile,
   validatePassword,
   validateUsername,
@@ -13,6 +15,7 @@ export type AccountRecord = {
   username: string;
   passwordHash: string;
   salt: string;
+  hashVersion?: number;
   photoDataUrl: string | null;
   createdAt: number;
 };
@@ -36,16 +39,30 @@ function loadAuth(): PersistedAuth {
   }
 }
 
-function saveAuth(data: PersistedAuth) {
+function saveAuth(data: PersistedAuth): boolean {
   try {
     localStorage.setItem(AUTH_LS_KEY, JSON.stringify(data));
+    const readBack = localStorage.getItem(AUTH_LS_KEY);
+    return readBack != null && readBack.length > 0;
   } catch {
-    // ignore quota errors
+    return false;
   }
 }
 
 function normalizeKey(username: string) {
   return username.trim().toLowerCase();
+}
+
+function mergeAccounts(
+  a: Record<string, AccountRecord>,
+  b: Record<string, AccountRecord>,
+) {
+  return { ...a, ...b };
+}
+
+function getAccountsSnapshot(get: () => AuthState): Record<string, AccountRecord> {
+  const disk = loadAuth();
+  return mergeAccounts(disk.accounts, get().accounts);
 }
 
 const initial = loadAuth();
@@ -67,27 +84,42 @@ type AuthState = PersistedAuth & {
   removePhoto: () => void;
   getCurrentAccount: () => AccountRecord | null;
   resetAllData: () => void;
+  refreshFromStorage: () => void;
 };
 
-function persist(state: PersistedAuth) {
-  saveAuth({
+function applyPersist(state: PersistedAuth): boolean {
+  const ok = saveAuth({
     accounts: state.accounts,
     currentUsername: state.currentUsername,
   });
+  return ok;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   accounts: initial.accounts,
   currentUsername: initial.currentUsername,
 
+  refreshFromStorage: () => {
+    const disk = loadAuth();
+    set({
+      accounts: mergeAccounts(get().accounts, disk.accounts),
+      currentUsername: disk.currentUsername ?? get().currentUsername,
+    });
+  },
+
   getCurrentAccount: () => {
-    const { accounts, currentUsername } = get();
+    const { currentUsername } = get();
     if (!currentUsername) return null;
+    const accounts = getAccountsSnapshot(get);
     const key = normalizeKey(currentUsername);
     return accounts[key] ?? null;
   },
 
   signUp: async (username, password) => {
+    if (!isAuthCryptoAvailable()) {
+      return { ok: false, error: authCryptoErrorMessage() };
+    }
+
     const userErr = validateUsername(username);
     if (userErr) return { ok: false, error: userErr };
     const passErr = validatePassword(password);
@@ -95,80 +127,121 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     const trimmed = username.trim();
     const key = normalizeKey(trimmed);
-    if (get().accounts[key]) {
+    const accounts = getAccountsSnapshot(get);
+
+    if (accounts[key]) {
       return { ok: false, error: 'That username is already taken.' };
     }
 
-    const { hash, salt } = await hashPassword(password);
-    const account: AccountRecord = {
-      username: trimmed,
-      passwordHash: hash,
-      salt,
-      photoDataUrl: null,
-      createdAt: Date.now(),
-    };
+    try {
+      const { hash, salt, version } = await hashPassword(password);
+      const account: AccountRecord = {
+        username: trimmed,
+        passwordHash: hash,
+        salt,
+        hashVersion: version,
+        photoDataUrl: null,
+        createdAt: Date.now(),
+      };
 
-    set((st) => {
-      const accounts = { ...st.accounts, [key]: account };
-      const next = { accounts, currentUsername: trimmed };
-      persist(next);
-      return next;
-    });
+      const nextAccounts = { ...accounts, [key]: account };
+      const next: PersistedAuth = {
+        accounts: nextAccounts,
+        currentUsername: trimmed,
+      };
 
-    return { ok: true };
+      if (!applyPersist(next)) {
+        return {
+          ok: false,
+          error:
+            'Could not save your account in this browser. Turn off private browsing or allow site storage.',
+        };
+      }
+
+      set(next);
+      return { ok: true };
+    } catch {
+      return { ok: false, error: authCryptoErrorMessage() };
+    }
   },
 
   signIn: async (username, password) => {
+    if (!isAuthCryptoAvailable()) {
+      return { ok: false, error: authCryptoErrorMessage() };
+    }
+
     const userErr = validateUsername(username);
     if (userErr) return { ok: false, error: userErr };
     if (!password) return { ok: false, error: 'Password is required.' };
 
     const key = normalizeKey(username);
-    const account = get().accounts[key];
+    const accounts = getAccountsSnapshot(get);
+    const account = accounts[key];
+
     if (!account) {
-      return { ok: false, error: 'No account with that username.' };
+      return {
+        ok: false,
+        error:
+          'No account with that username on this device. Sign up here first, or use the same browser where you created the account.',
+      };
     }
 
-    const valid = await verifyPassword(
-      password,
-      account.passwordHash,
-      account.salt,
-    );
-    if (!valid) return { ok: false, error: 'Incorrect password.' };
+    try {
+      const valid = await verifyPassword(
+        password,
+        account.passwordHash,
+        account.salt,
+        account.hashVersion ?? 2,
+      );
+      if (!valid) return { ok: false, error: 'Incorrect password.' };
 
-    set((st) => {
-      const next = { ...st, currentUsername: account.username };
-      persist(next);
-      return next;
-    });
+      const next: PersistedAuth = {
+        accounts,
+        currentUsername: account.username,
+      };
 
-    return { ok: true };
+      if (!applyPersist(next)) {
+        return {
+          ok: false,
+          error:
+            'Signed in, but could not save session. Allow site storage in your browser settings.',
+        };
+      }
+
+      set(next);
+      return { ok: true };
+    } catch {
+      return { ok: false, error: authCryptoErrorMessage() };
+    }
   },
 
   signOut: () =>
     set((st) => {
       const next = { ...st, currentUsername: null };
-      persist(next);
-      return next;
+      applyPersist(next);
+      return { currentUsername: null };
     }),
 
   updatePhoto: async (file) => {
-    const { currentUsername, accounts } = get();
+    const { currentUsername } = get();
     if (!currentUsername) return { ok: false, error: 'Not signed in.' };
 
     try {
       const photoDataUrl = await readPhotoFile(file);
       const key = normalizeKey(currentUsername);
+      const accounts = getAccountsSnapshot(get);
       const account = accounts[key];
       if (!account) return { ok: false, error: 'Account not found.' };
 
       const updated = { ...account, photoDataUrl };
-      set((st) => {
-        const nextAccounts = { ...st.accounts, [key]: updated };
-        const next = { ...st, accounts: nextAccounts };
-        persist(next);
-        return next;
-      });
+      const nextAccounts = { ...accounts, [key]: updated };
+      const next = { accounts: nextAccounts, currentUsername };
+
+      if (!applyPersist(next)) {
+        return { ok: false, error: 'Could not save photo. Storage may be full or blocked.' };
+      }
+
+      set((st) => ({ ...st, accounts: nextAccounts }));
       return { ok: true };
     } catch (e) {
       return {
@@ -182,38 +255,53 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const passErr = validatePassword(newPassword);
     if (passErr) return { ok: false, error: passErr };
 
-    const { currentUsername, accounts } = get();
+    const { currentUsername } = get();
     if (!currentUsername) return { ok: false, error: 'Not signed in.' };
 
+    if (!isAuthCryptoAvailable()) {
+      return { ok: false, error: authCryptoErrorMessage() };
+    }
+
     const key = normalizeKey(currentUsername);
+    const accounts = getAccountsSnapshot(get);
     const account = accounts[key];
     if (!account) return { ok: false, error: 'Account not found.' };
 
-    const { hash, salt } = await hashPassword(newPassword);
-    const updated = { ...account, passwordHash: hash, salt };
+    try {
+      const { hash, salt, version } = await hashPassword(newPassword);
+      const updated = {
+        ...account,
+        passwordHash: hash,
+        salt,
+        hashVersion: version,
+      };
+      const nextAccounts = { ...accounts, [key]: updated };
+      const next = { accounts: nextAccounts, currentUsername };
 
-    set((st) => {
-      const nextAccounts = { ...st.accounts, [key]: updated };
-      const next = { ...st, accounts: nextAccounts };
-      persist(next);
-      return next;
-    });
+      if (!applyPersist(next)) {
+        return { ok: false, error: 'Could not save password.' };
+      }
 
-    return { ok: true };
+      set((st) => ({ ...st, accounts: nextAccounts }));
+      return { ok: true };
+    } catch {
+      return { ok: false, error: authCryptoErrorMessage() };
+    }
   },
 
   removePhoto: () =>
     set((st) => {
       if (!st.currentUsername) return st;
       const key = normalizeKey(st.currentUsername);
-      const account = st.accounts[key];
+      const accounts = getAccountsSnapshot(get);
+      const account = accounts[key];
       if (!account) return st;
 
       const updated = { ...account, photoDataUrl: null };
-      const accounts = { ...st.accounts, [key]: updated };
-      const next = { ...st, accounts };
-      persist(next);
-      return next;
+      const nextAccounts = { ...accounts, [key]: updated };
+      const next = { accounts: nextAccounts, currentUsername: st.currentUsername };
+      applyPersist(next);
+      return { accounts: nextAccounts };
     }),
 
   resetAllData: () => {

@@ -1,11 +1,17 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AuthModal, type AuthMode } from './AuthModal';
+import { useAuthStore } from '../store/useAuthStore';
 import { Button } from './ui/Button';
 
 export function AuthGate() {
+  const refreshFromStorage = useAuthStore((s) => s.refreshFromStorage);
   const [authOpen, setAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>('signin');
   const baseUrl = import.meta.env.BASE_URL;
+
+  useEffect(() => {
+    refreshFromStorage();
+  }, [refreshFromStorage]);
 
   const openAuth = (mode: AuthMode) => {
     setAuthMode(mode);

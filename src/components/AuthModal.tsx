@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { authCryptoErrorMessage, isAuthCryptoAvailable } from '../lib/auth';
 import { useAuthStore } from '../store/useAuthStore';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
@@ -19,6 +20,7 @@ export function AuthModal({
 }) {
   const signUp = useAuthStore((s) => s.signUp);
   const signIn = useAuthStore((s) => s.signIn);
+  const refreshFromStorage = useAuthStore((s) => s.refreshFromStorage);
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -27,6 +29,10 @@ export function AuthModal({
 
   const isSignUp = mode === 'signup';
   const title = isSignUp ? 'Sign up' : 'Sign in';
+
+  useEffect(() => {
+    if (open) refreshFromStorage();
+  }, [open, refreshFromStorage]);
 
   const resetForm = () => {
     setUsername('');
@@ -42,21 +48,30 @@ export function AuthModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setBusy(true);
 
-    const result = isSignUp
-      ? await signUp(username, password)
-      : await signIn(username, password);
-
-    setBusy(false);
-
-    if (!result.ok) {
-      setError(result.error);
+    if (!isAuthCryptoAvailable()) {
+      setError(authCryptoErrorMessage());
       return;
     }
 
-    resetForm();
-    onClose();
+    setBusy(true);
+    try {
+      const result = isSignUp
+        ? await signUp(username, password)
+        : await signIn(username, password);
+
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+
+      resetForm();
+      onClose();
+    } catch {
+      setError(authCryptoErrorMessage());
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -66,6 +81,10 @@ export function AuthModal({
           {isSignUp
             ? 'Create an account with a username and password.'
             : 'Enter your username and password to continue.'}
+        </p>
+        <p className="text-xs text-fg-subtle">
+          Accounts are saved only on this device and this website URL. Sign up on
+          the live site if you have not already.
         </p>
 
         <div>
