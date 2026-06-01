@@ -1,5 +1,8 @@
 import { useState, type ReactNode } from 'react';
+import { useAuthStore } from '../store/useAuthStore';
+import { AuthModal, type AuthMode } from './AuthModal';
 import { CubeRulesModal } from './CubeRulesModal';
+import { ProfileModal } from './ProfileModal';
 
 export function Header({
   onOpenSettings,
@@ -7,7 +10,24 @@ export function Header({
   onOpenSettings: () => void;
 }) {
   const [rulesOpen, setRulesOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [authOpen, setAuthOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<AuthMode>('signin');
+
+  const currentUsername = useAuthStore((s) => s.currentUsername);
+  const accounts = useAuthStore((s) => s.accounts);
+  const account =
+    currentUsername != null
+      ? accounts[currentUsername.trim().toLowerCase()]
+      : null;
+
   const baseUrl = import.meta.env.BASE_URL;
+  const signedIn = currentUsername != null;
+
+  const openAuth = (mode: AuthMode) => {
+    setAuthMode(mode);
+    setAuthOpen(true);
+  };
 
   return (
     <>
@@ -22,6 +42,30 @@ export function Header({
           </a>
 
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+            {signedIn && account && (
+              <button
+                type="button"
+                onClick={() => setProfileOpen(true)}
+                className="inline-flex max-w-[10rem] items-center gap-2 rounded-lg border border-stroke/80 bg-bg-panel2 px-2 py-1.5 text-xs font-semibold text-fg transition hover:border-purple/40 hover:bg-purple/10 sm:max-w-[12rem] sm:px-2.5 sm:text-sm"
+                title="My profile"
+              >
+                <span className="h-7 w-7 shrink-0 overflow-hidden rounded-full border border-purple/30 bg-bg-inset">
+                  {account.photoDataUrl ? (
+                    <img
+                      src={account.photoDataUrl}
+                      alt=""
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <span className="grid h-full w-full place-items-center text-xs font-bold text-purple-light">
+                      {account.username.slice(0, 1).toUpperCase()}
+                    </span>
+                  )}
+                </span>
+                <span className="truncate">{account.username}</span>
+              </button>
+            )}
+
             <HeaderIconButton
               label="Rules"
               onClick={() => setRulesOpen(true)}
@@ -33,11 +77,33 @@ export function Header({
             <HeaderIconButton label="Settings" onClick={onOpenSettings}>
               <SettingsIcon />
             </HeaderIconButton>
+
+            {!signedIn && (
+              <>
+                <HeaderIconButton label="Sign in" onClick={() => openAuth('signin')}>
+                  <span>Sign in</span>
+                </HeaderIconButton>
+                <button
+                  type="button"
+                  onClick={() => openAuth('signup')}
+                  className="hidden rounded-lg bg-btn-purple px-2.5 py-2 text-xs font-semibold text-white shadow-purple transition hover:brightness-110 sm:inline sm:px-3 sm:text-sm"
+                >
+                  Sign up
+                </button>
+              </>
+            )}
           </div>
         </div>
       </header>
 
       <CubeRulesModal open={rulesOpen} onClose={() => setRulesOpen(false)} />
+      <ProfileModal open={profileOpen} onClose={() => setProfileOpen(false)} />
+      <AuthModal
+        open={authOpen}
+        mode={authMode}
+        onClose={() => setAuthOpen(false)}
+        onSwitchMode={setAuthMode}
+      />
     </>
   );
 }

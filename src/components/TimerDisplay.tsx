@@ -89,7 +89,7 @@ export function TimerDisplay() {
             : 'text-white/90';
 
   const hintText = multiDone
-    ? 'Tap here or press a key to start the next round'
+    ? 'Tap here or press Space to start the next round'
     : timer.phase === 'running' && multiMode
       ? 'Tap to finish this cube'
       : timer.phase === 'inspecting' || timer.phase === 'armedToStart'

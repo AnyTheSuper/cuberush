@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { AuthGate } from './components/AuthGate';
 import { GraphPanel } from './components/GraphPanel';
 import { Header } from './components/Header';
 import { TimesList } from './components/TimesList';
@@ -7,9 +8,15 @@ import { SettingsModal } from './components/SettingsModal';
 import { StatsPanel } from './components/StatsPanel';
 import { TimerDisplay } from './components/TimerDisplay';
 import { TopBar } from './components/TopBar';
+import { useIsSignedIn } from './store/useAuthStore';
 
 export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const signedIn = useIsSignedIn();
+
+  if (!signedIn) {
+    return <AuthGate />;
+  }
 
   return (
     <div className="min-h-full bg-bg">

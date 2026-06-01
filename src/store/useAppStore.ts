@@ -57,6 +57,18 @@ function makeSession(name: string, event: CubeEvent): Session {
   };
 }
 
+/** Next default name "Session N" — smallest N not already used. */
+function nextSessionName(sessions: Session[]): string {
+  const used = new Set<number>();
+  for (const s of sessions) {
+    const m = /^Session\s+(\d+)$/i.exec(s.name.trim());
+    if (m) used.add(Number(m[1]));
+  }
+  let n = 1;
+  while (used.has(n)) n += 1;
+  return `Session ${n}`;
+}
+
 function defaultTimerState(): TimerState {
   return {
     phase: 'idle',
@@ -125,6 +137,8 @@ type AppState = Persisted & {
   }) => void;
   deleteSolve: (solveId: string) => void;
   deleteSolves: (solveIds: string[]) => void;
+
+  resetAllData: () => void;
 };
 
 function normalizeSession(session: Session): Session {
@@ -304,9 +318,11 @@ export const useAppStore = create<AppState>((set, get) => {
 
     createSession: (name) =>
       set((st) => {
-        const idx = st.sessions.length + 1;
         const cur = st.sessions.find((s) => s.id === st.currentSessionId);
-        const newS = makeSession(name ?? `Session ${idx}`, cur?.event ?? '333');
+        const newS = makeSession(
+          name ?? nextSessionName(st.sessions),
+          cur?.event ?? '333',
+        );
         const sessions = [newS, ...st.sessions];
         queueMicrotask(persistNow);
         return { sessions, currentSessionId: newS.id, multiSolve: { ...st.multiSolve, index: 0 } };
@@ -455,6 +471,20 @@ export const useAppStore = create<AppState>((set, get) => {
         queueMicrotask(persistNow);
         return { sessions, lastSolveId };
       }),
+
+    resetAllData: () => {
+      try {
+        localStorage.removeItem(LS_KEY);
+      } catch {
+        // ignore
+      }
+      const fresh = initialPersisted();
+      set({
+        ...fresh,
+        timer: defaultTimerState(),
+        lastSolveId: null,
+      });
+    },
   };
 });
 

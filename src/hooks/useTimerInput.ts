@@ -233,19 +233,18 @@ export function useTimerInput() {
     handlersRef.current = { onPressDown, onPressUp, cancelActiveTimer };
 
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.code === 'Escape' || e.key === 'Escape') return;
-
+      if (e.code !== 'Space') return;
       if (isEditableTarget(e.target)) return;
-      if (e.code === 'Space') e.preventDefault();
+      e.preventDefault();
       if (e.repeat) return;
 
       onPressDown();
     };
 
     const onKeyUp = (e: KeyboardEvent) => {
-      if (e.code === 'Escape' || e.key === 'Escape') return;
+      if (e.code !== 'Space') return;
       if (isEditableTarget(e.target)) return;
-      if (e.code === 'Space') e.preventDefault();
+      e.preventDefault();
       if (e.repeat) return;
 
       onPressUp();

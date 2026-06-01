@@ -42,8 +42,8 @@ export function CubeRulesModal({
         <section>
           <h3 className="mb-1 font-semibold text-fg">Timing</h3>
           <ul className="list-disc space-y-1 pl-5">
-            <li>Hold any key or click the timer to arm, release to start inspection or the solve.</li>
-            <li>Press a key or click again to stop and record your time.</li>
+            <li>Hold Space or click the timer to arm, release to start inspection or the solve.</li>
+            <li>Press Space or click again to stop and record your time.</li>
             <li>Press <span className="font-mono text-fg">Esc</span> to cancel if you started by accident.</li>
             <li>With inspection on, you get a countdown before the solve begins.</li>
           </ul>

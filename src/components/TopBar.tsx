@@ -95,7 +95,7 @@ export function TopBar() {
 
             {multiMode && complete && (
               <div className="rounded-lg border border-stat-blue/40 bg-stat-blue/10 px-3 py-2 text-sm text-stat-blue">
-                Round complete — press a key or click the timer to start again
+                Round complete — press Space or click the timer to start again
               </div>
             )}
 

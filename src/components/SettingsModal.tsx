@@ -1,6 +1,7 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import type { ThemeAccent } from '../types';
 import { getInspectionLimits } from '../lib/inspection';
+import { resetEverything } from '../lib/resetApp';
 import { useAppStore } from '../store/useAppStore';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
@@ -15,6 +16,7 @@ export function SettingsModal({
   const settings = useAppStore((s) => s.settings);
   const multiSolve = useAppStore((s) => s.multiSolve);
   const setSettings = useAppStore((s) => s.setSettings);
+  const [confirmReset, setConfirmReset] = useState(false);
 
   const previewLimit = useMemo(() => {
     const limits = getInspectionLimits(settings, multiSolve.events.length);
@@ -110,8 +112,55 @@ export function SettingsModal({
           </select>
         </div>
 
+        <div className="border-t border-stroke/80 pt-5">
+          <div className="text-sm font-medium text-fg">Reset everything</div>
+          <p className="mt-1 text-xs text-fg-subtle">
+            Deletes all sessions, solve times, settings, and accounts on this
+            device. You will need to sign up or sign in again.
+          </p>
+          {!confirmReset ? (
+            <Button
+              type="button"
+              variant="danger"
+              className="mt-3"
+              onClick={() => setConfirmReset(true)}
+            >
+              Reset everything
+            </Button>
+          ) : (
+            <div className="mt-3 rounded-lg border border-bad/40 bg-bad/10 p-3">
+              <p className="text-sm text-fg">
+                This cannot be undone. All your data on this browser will be
+                erased.
+              </p>
+              <div className="mt-3 flex flex-wrap justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setConfirmReset(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  variant="danger"
+                  onClick={() => resetEverything()}
+                >
+                  Yes, reset everything
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+
         <div className="flex justify-end gap-2 pt-2">
-          <Button variant="ghost" onClick={onClose}>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setConfirmReset(false);
+              onClose();
+            }}
+          >
             Close
           </Button>
         </div>
