@@ -3,6 +3,7 @@ import {
   useEffect,
   useMemo,
   useRef,
+  useState,
 } from 'react';
 import { isMultiComplete, isLiveMultiMode } from '../lib/events';
 import {
@@ -36,6 +37,8 @@ export function useTimerInput() {
   const solveStartedPerfRef = useRef<number | null>(null);
   const pendingPenaltyRef = useRef<SolvePenalty>('OK');
   const touchActiveRef = useRef(false);
+  const inspectionReadyHeldRef = useRef(false);
+  const [inspectionReadyHeld, setInspectionReadyHeld] = useState(false);
   const surfaceCleanupRef = useRef<(() => void) | null>(null);
   const handlersRef = useRef({
     onPressDown: () => {},
@@ -51,7 +54,9 @@ export function useTimerInput() {
     };
 
     const needsLive =
-      timer.phase === 'running' || timer.phase === 'inspecting';
+      timer.phase === 'running' ||
+      timer.phase === 'inspecting' ||
+      timer.phase === 'armedToStart';
     if (needsLive) raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, [setNowMs, timer.phase]);
@@ -60,6 +65,8 @@ export function useTimerInput() {
     const cancelActiveTimer = () => {
       inputHeldRef.current = false;
       touchActiveRef.current = false;
+      inspectionReadyHeldRef.current = false;
+      setInspectionReadyHeld(false);
       pendingPenaltyRef.current = 'OK';
       solveStartedEpochRef.current = null;
       solveStartedPerfRef.current = null;
@@ -90,6 +97,8 @@ export function useTimerInput() {
     const releaseInput = () => {
       inputHeldRef.current = false;
       touchActiveRef.current = false;
+      inspectionReadyHeldRef.current = false;
+      setInspectionReadyHeld(false);
     };
 
     const cancelActiveTimer = () => {
@@ -127,7 +136,8 @@ export function useTimerInput() {
       }
 
       if (phase === 'inspecting') {
-        timerSetPhase('armedToStart', { armedAt: now });
+        inspectionReadyHeldRef.current = true;
+        setInspectionReadyHeld(true);
         return;
       }
 
@@ -213,6 +223,27 @@ export function useTimerInput() {
         return;
       }
 
+      if (phase === 'inspecting' && inspectionReadyHeldRef.current) {
+        inspectionReadyHeldRef.current = false;
+        setInspectionReadyHeld(false);
+
+        const inspStart = st.timer.inspectionStartedAt ?? now;
+        const inspElapsed = now - inspStart;
+        pendingPenaltyRef.current = inspectionPenaltyFromElapsed(
+          inspElapsed,
+          limits,
+        );
+
+        solveStartedEpochRef.current = Date.now();
+        solveStartedPerfRef.current = now;
+        timerSetPhase('running', {
+          runningStartedAt: now,
+          armedAt: null,
+          inspectionStartedAt: null,
+        });
+        return;
+      }
+
       if (phase === 'armedToStart') {
         const inspStart = st.timer.inspectionStartedAt ?? now;
         const inspElapsed = now - inspStart;
@@ -226,6 +257,7 @@ export function useTimerInput() {
         timerSetPhase('running', {
           runningStartedAt: now,
           armedAt: null,
+          inspectionStartedAt: null,
         });
       }
     };
@@ -369,7 +401,14 @@ export function useTimerInput() {
     }
   }, []);
 
-  return { ...derived, surfaceRef, onPointerDown, onPointerUp, onPointerCancel };
+  return {
+    ...derived,
+    inspectionReadyHeld,
+    surfaceRef,
+    onPointerDown,
+    onPointerUp,
+    onPointerCancel,
+  };
 }
 
 /** @deprecated use useTimerInput */

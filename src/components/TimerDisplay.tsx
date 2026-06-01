@@ -27,6 +27,7 @@ export function TimerDisplay() {
     inspectionPenalty,
     runningElapsedMs,
     inspectionLimitSec,
+    inspectionReadyHeld,
     surfaceRef,
     onPointerDown,
     onPointerUp,
@@ -78,7 +79,9 @@ export function TimerDisplay() {
     ? roundTotal == null
       ? 'text-bad'
       : 'text-white'
-    : timer.phase === 'armed' || timer.phase === 'armedToStart'
+    : timer.phase === 'armed' ||
+        timer.phase === 'armedToStart' ||
+        (timer.phase === 'inspecting' && inspectionReadyHeld)
       ? 'text-stat-green'
       : timer.phase === 'running'
         ? 'text-white'
@@ -93,7 +96,9 @@ export function TimerDisplay() {
     : timer.phase === 'running' && multiMode
       ? 'Tap to finish this cube'
       : timer.phase === 'inspecting' || timer.phase === 'armedToStart'
-        ? 'Tap and hold, then release to start'
+        ? inspectionReadyHeld
+          ? 'Release to start the solve'
+          : 'Hold Space or tap and hold — inspection keeps running'
         : 'Tap and hold the timer, release to start · Tap again to stop';
 
   return (
