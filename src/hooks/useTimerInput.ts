@@ -38,8 +38,17 @@ export function useTimerInput() {
   const pendingPenaltyRef = useRef<SolvePenalty>('OK');
   const touchActiveRef = useRef(false);
   const inspectionReadyHeldRef = useRef(false);
+  const inspectionReadySinceRef = useRef(0);
+  /** Ignore stop / duplicate press briefly after the solve timer starts. */
+  const runGuardUntilRef = useRef(0);
   const [inspectionReadyHeld, setInspectionReadyHeld] = useState(false);
   const surfaceCleanupRef = useRef<(() => void) | null>(null);
+
+  const armRunGuard = () => {
+    runGuardUntilRef.current = performance.now() + 600;
+  };
+
+  const canStopRunning = () => performance.now() >= runGuardUntilRef.current;
   const handlersRef = useRef({
     onPressDown: () => {},
     onPressUp: () => {},
@@ -137,11 +146,14 @@ export function useTimerInput() {
 
       if (phase === 'inspecting') {
         inspectionReadyHeldRef.current = true;
+        inspectionReadySinceRef.current = performance.now();
         setInspectionReadyHeld(true);
         return;
       }
 
       if (phase === 'running') {
+        if (!canStopRunning()) return;
+
         const startedPerf = solveStartedPerfRef.current;
         const startedEpoch = solveStartedEpochRef.current;
         if (startedPerf == null || startedEpoch == null) return;
@@ -170,6 +182,7 @@ export function useTimerInput() {
           pendingPenaltyRef.current = 'OK';
           solveStartedEpochRef.current = Date.now();
           solveStartedPerfRef.current = now;
+          armRunGuard();
           timerSetPhase('running', {
             runningStartedAt: roundStartedAt,
             armedAt: null,
@@ -215,6 +228,7 @@ export function useTimerInput() {
         pendingPenaltyRef.current = 'OK';
         solveStartedEpochRef.current = Date.now();
         solveStartedPerfRef.current = now;
+        armRunGuard();
         timerSetPhase('running', {
           runningStartedAt: now,
           armedAt: null,
@@ -224,8 +238,13 @@ export function useTimerInput() {
       }
 
       if (phase === 'inspecting' && inspectionReadyHeldRef.current) {
+        const heldMs = performance.now() - inspectionReadySinceRef.current;
         inspectionReadyHeldRef.current = false;
         setInspectionReadyHeld(false);
+
+        if (heldMs < 120) {
+          return;
+        }
 
         const inspStart = st.timer.inspectionStartedAt ?? now;
         const inspElapsed = now - inspStart;
@@ -236,6 +255,7 @@ export function useTimerInput() {
 
         solveStartedEpochRef.current = Date.now();
         solveStartedPerfRef.current = now;
+        armRunGuard();
         timerSetPhase('running', {
           runningStartedAt: now,
           armedAt: null,
@@ -254,6 +274,7 @@ export function useTimerInput() {
 
         solveStartedEpochRef.current = Date.now();
         solveStartedPerfRef.current = now;
+        armRunGuard();
         timerSetPhase('running', {
           runningStartedAt: now,
           armedAt: null,
@@ -316,13 +337,6 @@ export function useTimerInput() {
     const onTouchEnd = (e: TouchEvent) => {
       e.preventDefault();
 
-      const phase = useAppStore.getState().timer.phase;
-
-      if (phase === 'running' && !touchActiveRef.current) {
-        handlersRef.current.onPressDown();
-        return;
-      }
-
       if (!touchActiveRef.current) return;
       touchActiveRef.current = false;
       handlersRef.current.onPressUp();
@@ -332,7 +346,10 @@ export function useTimerInput() {
       if (!touchActiveRef.current) return;
       touchActiveRef.current = false;
       inputHeldRef.current = false;
-      handlersRef.current.onPressUp();
+      if (inspectionReadyHeldRef.current) {
+        inspectionReadyHeldRef.current = false;
+        setInspectionReadyHeld(false);
+      }
     };
 
     const opts: AddEventListenerOptions = { passive: false };
@@ -376,11 +393,6 @@ export function useTimerInput() {
     if (e.pointerType === 'touch') return;
     if (e.button !== 0) return;
     e.preventDefault();
-    try {
-      e.currentTarget.setPointerCapture(e.pointerId);
-    } catch {
-      // Some browsers reject capture; mouse path still works.
-    }
     handlersRef.current.onPressDown();
   }, []);
 
@@ -388,17 +400,16 @@ export function useTimerInput() {
     if (e.pointerType === 'touch') return;
     e.preventDefault();
     handlersRef.current.onPressUp();
-    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-      e.currentTarget.releasePointerCapture(e.pointerId);
-    }
   }, []);
 
   const onPointerCancel = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (e.pointerType === 'touch') return;
-    handlersRef.current.onPressUp();
-    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-      e.currentTarget.releasePointerCapture(e.pointerId);
+    const phase = useAppStore.getState().timer.phase;
+    if (phase === 'inspecting' && inspectionReadyHeldRef.current) {
+      inspectionReadyHeldRef.current = false;
+      setInspectionReadyHeld(false);
     }
+    inputHeldRef.current = false;
   }, []);
 
   return {
