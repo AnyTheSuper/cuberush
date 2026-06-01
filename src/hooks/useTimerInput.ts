@@ -129,6 +129,119 @@ export function useTimerInput() {
       }
     };
 
+    const beginRunning = (now: number) => {
+      pendingPenaltyRef.current = 'OK';
+      solveStartedEpochRef.current = Date.now();
+      solveStartedPerfRef.current = now;
+      armRunGuard();
+      timerSetPhase('running', {
+        runningStartedAt: now,
+        armedAt: null,
+        inspectionStartedAt: null,
+      });
+    };
+
+    const beginRunningAfterInspection = (now: number) => {
+      const st = useAppStore.getState();
+      const inspStart = st.timer.inspectionStartedAt ?? now;
+      const inspElapsed = now - inspStart;
+      const limits = getInspectionLimits(st.settings, st.multiSolve.events.length);
+      pendingPenaltyRef.current = inspectionPenaltyFromElapsed(
+        inspElapsed,
+        limits,
+      );
+      inspectionReadyHeldRef.current = false;
+      setInspectionReadyHeld(false);
+      solveStartedEpochRef.current = Date.now();
+      solveStartedPerfRef.current = now;
+      armRunGuard();
+      timerSetPhase('running', {
+        runningStartedAt: now,
+        armedAt: null,
+        inspectionStartedAt: null,
+      });
+    };
+
+    const finishSolve = (now: number) => {
+      const st = useAppStore.getState();
+      const startedPerf = solveStartedPerfRef.current;
+      const startedEpoch = solveStartedEpochRef.current;
+      if (startedPerf == null || startedEpoch == null) return;
+
+      const session = st.sessions.find((x) => x.id === st.currentSessionId);
+      const multiMode = isLiveMultiMode(session, st.multiSolve);
+      const roundStartedAt = st.timer.runningStartedAt;
+
+      addSolve({
+        startedAt: startedEpoch,
+        endedAt: Date.now(),
+        elapsedMs: Math.max(0, now - startedPerf),
+        penalty: pendingPenaltyRef.current,
+      });
+      advanceMultiSolve();
+
+      const after = useAppStore.getState();
+      const roundDone = isMultiComplete(after.multiSolve);
+
+      releaseInput();
+
+      if (multiMode && !roundDone && roundStartedAt != null) {
+        pendingPenaltyRef.current = 'OK';
+        solveStartedEpochRef.current = Date.now();
+        solveStartedPerfRef.current = now;
+        armRunGuard();
+        timerSetPhase('running', {
+          runningStartedAt: roundStartedAt,
+          armedAt: null,
+          inspectionStartedAt: null,
+        });
+        return;
+      }
+
+      pendingPenaltyRef.current = 'OK';
+      solveStartedEpochRef.current = null;
+      solveStartedPerfRef.current = null;
+      timerSetPhase('idle', {
+        armedAt: null,
+        inspectionStartedAt: null,
+        runningStartedAt: null,
+      });
+    };
+
+    /** Space bar: one press per step (no hold-to-start). */
+    const onKeyboardSpaceDown = () => {
+      prepareRound();
+
+      const st = useAppStore.getState();
+      const phase: TimerPhase = st.timer.phase;
+      const now = performance.now();
+
+      if (phase === 'idle' || phase === 'armed') {
+        inputHeldRef.current = false;
+        if (st.settings.inspectionEnabled) {
+          pendingPenaltyRef.current = 'OK';
+          timerSetPhase('inspecting', {
+            inspectionStartedAt: now,
+            armedAt: null,
+          });
+        } else {
+          beginRunning(now);
+        }
+        return;
+      }
+
+      if (phase === 'inspecting' || phase === 'armedToStart') {
+        inputHeldRef.current = false;
+        beginRunningAfterInspection(now);
+        return;
+      }
+
+      if (phase === 'running') {
+        if (!canStopRunning()) return;
+        finishSolve(now);
+      }
+    };
+
     const onPressDown = () => {
       if (inputHeldRef.current) return;
       inputHeldRef.current = true;
@@ -153,52 +266,7 @@ export function useTimerInput() {
 
       if (phase === 'running') {
         if (!canStopRunning()) return;
-
-        const startedPerf = solveStartedPerfRef.current;
-        const startedEpoch = solveStartedEpochRef.current;
-        if (startedPerf == null || startedEpoch == null) return;
-
-        const endedEpoch = Date.now();
-        const elapsedMs = Math.max(0, now - startedPerf);
-        const penalty = pendingPenaltyRef.current;
-        const session = st.sessions.find((x) => x.id === st.currentSessionId);
-        const multiMode = isLiveMultiMode(session, st.multiSolve);
-        const roundStartedAt = st.timer.runningStartedAt;
-
-        addSolve({
-          startedAt: startedEpoch,
-          endedAt: endedEpoch,
-          elapsedMs,
-          penalty,
-        });
-        advanceMultiSolve();
-
-        const after = useAppStore.getState();
-        const roundDone = isMultiComplete(after.multiSolve);
-
-        releaseInput();
-
-        if (multiMode && !roundDone && roundStartedAt != null) {
-          pendingPenaltyRef.current = 'OK';
-          solveStartedEpochRef.current = Date.now();
-          solveStartedPerfRef.current = now;
-          armRunGuard();
-          timerSetPhase('running', {
-            runningStartedAt: roundStartedAt,
-            armedAt: null,
-            inspectionStartedAt: null,
-          });
-          return;
-        }
-
-        pendingPenaltyRef.current = 'OK';
-        solveStartedEpochRef.current = null;
-        solveStartedPerfRef.current = null;
-        timerSetPhase('idle', {
-          armedAt: null,
-          inspectionStartedAt: null,
-          runningStartedAt: null,
-        });
+        finishSolve(now);
       }
     };
 
@@ -212,8 +280,6 @@ export function useTimerInput() {
       const st = useAppStore.getState();
       const phase: TimerPhase = st.timer.phase;
       const now = performance.now();
-      const cubeCount = st.multiSolve.events.length;
-      const limits = getInspectionLimits(st.settings, cubeCount);
 
       if (phase === 'armed') {
         if (st.settings.inspectionEnabled) {
@@ -222,64 +288,25 @@ export function useTimerInput() {
             inspectionStartedAt: now,
             armedAt: null,
           });
-          return;
+        } else {
+          beginRunning(now);
         }
-
-        pendingPenaltyRef.current = 'OK';
-        solveStartedEpochRef.current = Date.now();
-        solveStartedPerfRef.current = now;
-        armRunGuard();
-        timerSetPhase('running', {
-          runningStartedAt: now,
-          armedAt: null,
-          inspectionStartedAt: null,
-        });
         return;
       }
 
       if (phase === 'inspecting' && inspectionReadyHeldRef.current) {
         const heldMs = performance.now() - inspectionReadySinceRef.current;
-        inspectionReadyHeldRef.current = false;
-        setInspectionReadyHeld(false);
-
         if (heldMs < 120) {
+          inspectionReadyHeldRef.current = false;
+          setInspectionReadyHeld(false);
           return;
         }
-
-        const inspStart = st.timer.inspectionStartedAt ?? now;
-        const inspElapsed = now - inspStart;
-        pendingPenaltyRef.current = inspectionPenaltyFromElapsed(
-          inspElapsed,
-          limits,
-        );
-
-        solveStartedEpochRef.current = Date.now();
-        solveStartedPerfRef.current = now;
-        armRunGuard();
-        timerSetPhase('running', {
-          runningStartedAt: now,
-          armedAt: null,
-          inspectionStartedAt: null,
-        });
+        beginRunningAfterInspection(now);
         return;
       }
 
       if (phase === 'armedToStart') {
-        const inspStart = st.timer.inspectionStartedAt ?? now;
-        const inspElapsed = now - inspStart;
-        pendingPenaltyRef.current = inspectionPenaltyFromElapsed(
-          inspElapsed,
-          limits,
-        );
-
-        solveStartedEpochRef.current = Date.now();
-        solveStartedPerfRef.current = now;
-        armRunGuard();
-        timerSetPhase('running', {
-          runningStartedAt: now,
-          armedAt: null,
-          inspectionStartedAt: null,
-        });
+        beginRunningAfterInspection(now);
       }
     };
 
@@ -291,23 +318,12 @@ export function useTimerInput() {
       e.preventDefault();
       if (e.repeat) return;
 
-      onPressDown();
-    };
-
-    const onKeyUp = (e: KeyboardEvent) => {
-      if (e.code !== 'Space') return;
-      if (isEditableTarget(e.target)) return;
-      e.preventDefault();
-      if (e.repeat) return;
-
-      onPressUp();
+      onKeyboardSpaceDown();
     };
 
     window.addEventListener('keydown', onKeyDown, { passive: false });
-    window.addEventListener('keyup', onKeyUp, { passive: false });
     return () => {
       window.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('keyup', onKeyUp);
     };
   }, [addSolve, advanceMultiSolve, resetMultiSolve, timerSetPhase]);
 

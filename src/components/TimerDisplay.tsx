@@ -96,10 +96,10 @@ export function TimerDisplay() {
     : timer.phase === 'running' && multiMode
       ? 'Tap to finish this cube'
       : timer.phase === 'inspecting' || timer.phase === 'armedToStart'
-        ? inspectionReadyHeld
-          ? 'Release to start the solve'
-          : 'Hold Space or tap and hold — inspection keeps running'
-        : 'Tap and hold the timer, release to start · Tap again to stop';
+        ? 'Press Space or tap and hold, then release to start the solve'
+        : timer.phase === 'armed'
+          ? 'Release click/tap to start inspection, or press Space'
+          : 'Press Space or tap and hold the timer, release to start';
 
   return (
     <div

@@ -42,9 +42,14 @@ export function CubeRulesModal({
         <section>
           <h3 className="mb-1 font-semibold text-fg">Timing</h3>
           <ul className="list-disc space-y-1 pl-5">
-            <li>Hold Space or click the timer to arm, release to start inspection or the solve.</li>
-            <li>During inspection, hold again while the countdown runs, then release to start the solve.</li>
-            <li>Press Space or click again while solving to stop and record your time.</li>
+            <li>
+              Press Space once to start inspection (or the solve if inspection is off).
+            </li>
+            <li>Press Space again during inspection to start the solve.</li>
+            <li>
+              On mobile, tap and hold the timer, then release (same for each step).
+            </li>
+            <li>Press Space while solving to stop and record your time.</li>
             <li>Press <span className="font-mono text-fg">Esc</span> to cancel if you started by accident.</li>
             <li>With inspection on, you get a countdown before the solve begins.</li>
           </ul>
