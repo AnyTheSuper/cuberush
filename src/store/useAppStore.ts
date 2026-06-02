@@ -208,6 +208,12 @@ type AppState = Persisted & {
 
   setSettings: (patch: Partial<Settings>) => void;
 
+  applySetup: (input: {
+    discipline: Discipline;
+    event: CubeEvent;
+    multiEvents?: CubeEvent[];
+  }) => void;
+
   createSession: (name?: string) => void;
   switchSession: (id: string) => void;
   renameSession: (id: string, name: string) => void;
@@ -481,6 +487,40 @@ export const useAppStore = create<AppState>((set, get) => {
         return { settings };
       }),
 
+    applySetup: ({ discipline, event, multiEvents }) => {
+      set((st) => {
+        if (discipline === 'multi') {
+          const events = (multiEvents?.length ? [...multiEvents] : [event]).slice();
+          const active = events[0] ?? event;
+          const next = upsertSetupSession(st.sessions, {
+            discipline: 'multi',
+            event: active,
+            multiEvents: events,
+          });
+          queueMicrotask(persistNow);
+          queueMicrotask(() => get().refreshOfficialScramble(active));
+          return {
+            sessions: next.sessions,
+            currentSessionId: next.session.id,
+            multiSolve: { index: 0, events },
+          };
+        }
+
+        const next = upsertSetupSession(st.sessions, { discipline, event });
+        queueMicrotask(persistNow);
+        queueMicrotask(() => get().refreshOfficialScramble(event));
+        return {
+          sessions: next.sessions,
+          currentSessionId: next.session.id,
+          multiSolve: { index: 0, events: [event] },
+          scrambleByEvent: {
+            ...st.scrambleByEvent,
+            [event]: generateScrambleSync(event),
+          },
+        };
+      });
+    },
+
     createSession: (name) =>
       set((st) => {
         const cur = st.sessions.find((s) => s.id === st.currentSessionId);
@@ -522,12 +562,27 @@ export const useAppStore = create<AppState>((set, get) => {
       set((st) => {
         if (st.sessions.length <= 1) return {};
         const sessions = st.sessions.filter((s) => s.id !== id);
-        const currentSessionId =
+        const nextId =
           st.currentSessionId === id
             ? (sessions[0]?.id ?? st.currentSessionId)
             : st.currentSessionId;
+
+        const target = sessions.find((s) => s.id === nextId);
+        const isMulti = target?.discipline === 'multi';
+        const events =
+          isMulti && target?.multiRoundEvents && target.multiRoundEvents.length > 0
+            ? [...target.multiRoundEvents]
+            : [target?.event ?? '333'];
+        const multiSolve = { index: 0, events };
+        const active = multiSolveEventAt(events, 0);
+        const synced = syncSessionToEvent(st, nextId, active, true);
         queueMicrotask(persistNow);
-        return { sessions, currentSessionId };
+        return {
+          ...synced,
+          sessions,
+          currentSessionId: nextId,
+          multiSolve,
+        };
       }),
 
     toggleMultiSolveEvent: (event) =>

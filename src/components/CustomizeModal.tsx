@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { CubeEvent, Discipline } from '../types';
 import { disciplineLabel, eventLabel } from '../lib/events';
 import { useAppStore } from '../store/useAppStore';
@@ -18,36 +18,79 @@ export function CustomizeModal({
     s.sessions.find((x) => x.id === s.currentSessionId),
   );
   const setSettings = useAppStore((s) => s.setSettings);
-  const setEvent = useAppStore((s) => s.setEvent);
-  const setDiscipline = useAppStore((s) => s.setDiscipline);
+  const applySetup = useAppStore((s) => s.applySetup);
   const multiSolve = useAppStore((s) => s.multiSolve);
-  const toggleMultiSolveEvent = useAppStore((s) => s.toggleMultiSolveEvent);
 
   const discipline: Discipline = session?.discipline ?? 'standard';
   const event: CubeEvent = session?.event ?? '333';
-  const multiSelected = useMemo(() => new Set(multiSolve.events), [multiSolve.events]);
+
+  const [draftDiscipline, setDraftDiscipline] = useState<Discipline>(discipline);
+  const [draftEvent, setDraftEvent] = useState<CubeEvent>(event);
+  const [draftMultiEvents, setDraftMultiEvents] = useState<CubeEvent[]>(
+    multiSolve.events.length ? [...multiSolve.events] : ['333', '444', '555'],
+  );
+
+  // When opening, snapshot current session as the draft.
+  useEffect(() => {
+    if (!open) return;
+    setDraftDiscipline(discipline);
+    setDraftEvent(event);
+    setDraftMultiEvents(
+      multiSolve.events.length ? [...multiSolve.events] : ['333', '444', '555'],
+    );
+  }, [discipline, event, multiSolve.events, open]);
+
+  const multiSelected = useMemo(
+    () => new Set(draftMultiEvents),
+    [draftMultiEvents],
+  );
 
   const activeLabel = useMemo(() => {
-    if (discipline === 'multi') {
-      return `Multi · ${multiSolve.events.length} cube${multiSolve.events.length === 1 ? '' : 's'}`;
+    if (draftDiscipline === 'multi') {
+      return `Multi · ${draftMultiEvents.length} cube${draftMultiEvents.length === 1 ? '' : 's'}`;
     }
-    return `${disciplineLabel(discipline)} · ${eventLabel(event)}`;
-  }, [discipline, event, multiSolve.events.length]);
+    return `${disciplineLabel(draftDiscipline)} · ${eventLabel(draftEvent)}`;
+  }, [draftDiscipline, draftEvent, draftMultiEvents.length]);
 
   const setAsDefault = () => {
-    if (discipline === 'multi') {
+    if (draftDiscipline === 'multi') {
       setSettings({
         defaultDiscipline: 'multi',
-        defaultEvent: multiSolve.events[0] ?? '333',
+        defaultEvent: draftMultiEvents[0] ?? '333',
         defaultMultiEvents:
-          multiSolve.events.length > 0 ? [...multiSolve.events] : ['333', '444', '555'],
+          draftMultiEvents.length > 0 ? [...draftMultiEvents] : ['333', '444', '555'],
       });
     } else {
       setSettings({
-        defaultDiscipline: discipline,
-        defaultEvent: event,
+        defaultDiscipline: draftDiscipline,
+        defaultEvent: draftEvent,
       });
     }
+  };
+
+  const toggleDraftMulti = (e: CubeEvent) => {
+    setDraftMultiEvents((prev) => {
+      const has = prev.includes(e);
+      if (has) {
+        if (prev.length <= 1) return prev;
+        return prev.filter((x) => x !== e);
+      }
+      return [...prev, e];
+    });
+  };
+
+  const handleDone = () => {
+    if (draftDiscipline === 'multi') {
+      const events = draftMultiEvents.length ? [...draftMultiEvents] : [draftEvent];
+      applySetup({
+        discipline: 'multi',
+        event: events[0] ?? draftEvent,
+        multiEvents: events,
+      });
+    } else {
+      applySetup({ discipline: draftDiscipline, event: draftEvent });
+    }
+    onClose();
   };
 
   return (
@@ -75,12 +118,12 @@ export function CustomizeModal({
                 ['other', 'Other'],
               ] as const
             ).map(([id, label]) => {
-              const active = discipline === id;
+              const active = draftDiscipline === id;
               return (
                 <button
                   key={id}
                   type="button"
-                  onClick={() => setDiscipline(id)}
+                  onClick={() => setDraftDiscipline(id)}
                   className={
                     'rounded-xl border px-3 py-3 text-sm font-semibold transition ' +
                     (active
@@ -95,12 +138,12 @@ export function CustomizeModal({
           </div>
         </Card>
 
-        {discipline !== 'multi' ? (
+        {draftDiscipline !== 'multi' ? (
           <Card title="Cube">
             <PuzzleGrid
               mode="single"
-              activeEvent={event}
-              onPick={(e) => setEvent(e)}
+              activeEvent={draftEvent}
+              onPick={(e) => setDraftEvent(e)}
               maxHeight="max-h-72"
             />
           </Card>
@@ -116,14 +159,14 @@ export function CustomizeModal({
             <PuzzleGrid
               mode="multi"
               selectedEvents={multiSelected}
-              onPick={toggleMultiSolveEvent}
+              onPick={toggleDraftMulti}
               maxHeight="max-h-72"
             />
           </Card>
         )}
 
         <div className="flex justify-end gap-2 pt-2">
-          <Button type="button" variant="ghost" onClick={onClose}>
+          <Button type="button" variant="ghost" onClick={handleDone}>
             Done
           </Button>
         </div>
