@@ -156,20 +156,20 @@ export function AchievementPopup() {
   if (!popup) return null;
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 top-4 z-[1001] flex justify-center px-4">
-      <div className="pointer-events-none w-full max-w-md rounded-xl2 border border-stat-yellow/50 bg-bg-panel/90 p-4 shadow-purple backdrop-blur">
-        <div className="flex items-start gap-3">
-          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-stat-yellow/40 bg-stat-yellow/15 text-xl">
+    <div className="pointer-events-none fixed inset-0 z-[1001] grid place-items-center px-4">
+      <div className="pointer-events-none w-full max-w-xl rounded-2xl border border-stat-yellow/50 bg-bg-panel/90 p-6 shadow-purple backdrop-blur">
+        <div className="flex items-start gap-4">
+          <div className="grid h-16 w-16 shrink-0 place-items-center rounded-xl border border-stat-yellow/40 bg-stat-yellow/15 text-4xl">
             {popup.icon}
           </div>
           <div className="min-w-0">
-            <div className="text-xs font-semibold tracking-[0.22em] text-stat-yellow">
+            <div className="text-sm font-semibold tracking-[0.22em] text-stat-yellow">
               ACHIEVEMENT UNLOCKED
             </div>
-            <div className="mt-1 truncate text-base font-semibold text-fg">
+            <div className="mt-1 truncate text-2xl font-semibold text-fg">
               {popup.title}
             </div>
-            <div className="mt-0.5 text-sm text-fg-muted">
+            <div className="mt-1 text-base text-fg-muted">
               {popup.description}
             </div>
           </div>
