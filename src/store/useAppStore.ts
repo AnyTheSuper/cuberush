@@ -494,9 +494,21 @@ export const useAppStore = create<AppState>((set, get) => {
       }),
 
     switchSession: (id) =>
-      set(() => {
+      set((st) => {
+        const target = st.sessions.find((s) => s.id === id);
+        if (!target) return {};
+
+        const isMulti = target.discipline === 'multi';
+        const events =
+          isMulti && target.multiRoundEvents && target.multiRoundEvents.length > 0
+            ? [...target.multiRoundEvents]
+            : [target.event];
+        const multiSolve = { index: 0, events };
+        const active = multiSolveEventAt(events, 0);
+        const synced = syncSessionToEvent(st, id, active);
+
         queueMicrotask(persistNow);
-        return { currentSessionId: id, multiSolve: { ...get().multiSolve, index: 0 } };
+        return { currentSessionId: id, multiSolve, ...synced };
       }),
 
     renameSession: (id, name) =>

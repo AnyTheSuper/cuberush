@@ -31,7 +31,7 @@ export function StatsPanel() {
   const countLabel = multiMode ? 'Rounds' : 'Count';
 
   return (
-    <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
       <StatCard
         label="Best"
         value={stats.best == null ? '—' : formatMs(stats.best)}
@@ -57,13 +57,13 @@ function StatCard({ label, value }: { label: string; value: string }) {
   const valueColor = STAT_COLORS[label] ?? 'text-fg';
 
   return (
-    <Card className="border-purple/25 px-0 py-0">
-      <div className="px-4 py-3">
-        <div className="text-xs font-semibold tracking-[0.2em] text-fg-subtle">
+    <Card className="min-w-0 overflow-hidden border-purple/25 px-0 py-0">
+      <div className="px-3 py-2.5">
+        <div className="truncate text-[10px] font-semibold tracking-[0.2em] text-fg-subtle">
           {label.toUpperCase()}
         </div>
         <div
-          className={`mt-2 text-2xl font-semibold tabular-nums ${valueColor}`}
+          className={`mt-1 truncate text-xl font-semibold tabular-nums sm:text-2xl ${valueColor}`}
         >
           {value}
         </div>

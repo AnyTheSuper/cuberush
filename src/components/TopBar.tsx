@@ -63,12 +63,6 @@ export function TopBar() {
 
   const statusLabel = multiMode ? 'Multi' : disciplineLabel(discipline);
 
-  const scramblePreview = useMemo(() => {
-    const s = String(scramble ?? '').replace(/\s+/g, ' ').trim();
-    if (!s) return '';
-    return s.length > 72 ? `${s.slice(0, 72)}…` : s;
-  }, [scramble]);
-
   return (
     <>
       <CustomizeModal open={customizeOpen} onClose={() => setCustomizeOpen(false)} />
@@ -88,12 +82,6 @@ export function TopBar() {
           </div>
 
           <div className="ml-auto flex flex-wrap items-center gap-2">
-            <div
-              className="max-w-[min(100%,28rem)] truncate rounded-lg border border-stroke/70 bg-bg-panel2 px-3 py-2 text-xs text-fg-muted"
-              title={scramble}
-            >
-              {scramblePreview}
-            </div>
             <Button variant="ghost" onClick={() => setCustomizeOpen(true)}>
               Customize
             </Button>
@@ -123,6 +111,10 @@ export function TopBar() {
                 Round complete — press Space or click the timer to start again
               </div>
             )}
+          </div>
+
+          <div className="rounded-xl border border-purple/20 bg-bg-inset px-4 py-3 font-mono text-sm leading-relaxed whitespace-pre-wrap text-fg">
+            {scramble}
           </div>
         </div>
       </div>
