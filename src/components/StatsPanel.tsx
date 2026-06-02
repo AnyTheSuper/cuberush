@@ -8,7 +8,6 @@ const STAT_COLORS: Record<string, string> = {
   Best: 'text-stat-green',
   Average: 'text-stat-blue',
   Ao5: 'text-stat-pink',
-  Ao12: 'text-stat-yellow',
   Rounds: 'text-stat-pink',
   Count: 'text-stat-pink',
 };
@@ -30,17 +29,13 @@ export function StatsPanel() {
   const countLabel = multiMode ? 'Rounds' : 'Count';
 
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-5">
+    <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
       <StatPill label="Best" value={stats.best == null ? '—' : formatMs(stats.best)} />
       <StatPill
         label="Average"
         value={stats.avg == null ? '—' : formatMs(stats.avg)}
       />
       <StatPill label="Ao5" value={stats.ao5 == null ? '—' : formatMs(stats.ao5)} />
-      <StatPill
-        label="Ao12"
-        value={stats.ao12 == null ? '—' : formatMs(stats.ao12)}
-      />
       <StatPill label={countLabel} value={String(stats.roundCount)} />
     </div>
   );
