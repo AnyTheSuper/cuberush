@@ -30,7 +30,7 @@ export function StatsPanel() {
   const countLabel = multiMode ? 'Rounds' : 'Count';
 
   return (
-    <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-5">
       <StatPill label="Best" value={stats.best == null ? '—' : formatMs(stats.best)} />
       <StatPill
         label="Average"
@@ -50,7 +50,7 @@ function StatPill({ label, value }: { label: string; value: string }) {
   const valueColor = STAT_COLORS[label] ?? 'text-fg';
 
   return (
-    <div className="min-w-[132px] flex-1 rounded-xl border border-purple/25 bg-bg-panel px-3 py-2 shadow-panel">
+    <div className="min-w-0 rounded-xl border border-purple/25 bg-bg-panel px-3 py-2 shadow-panel">
       <div className="truncate text-[10px] font-semibold tracking-[0.22em] text-fg-subtle">
         {label.toUpperCase()}
       </div>
