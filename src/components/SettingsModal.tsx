@@ -123,15 +123,9 @@ export function SettingsModal({
         />
 
         <ToggleRow
-          label="Show advanced puzzle & discipline controls by default"
+          label="Customize starts open"
           checked={settings.uiAdvancedOpen}
           onChange={(v) => setSettings({ uiAdvancedOpen: v })}
-        />
-
-        <ToggleRow
-          label="Auto-collapse advanced controls after changing"
-          checked={settings.uiAutoCollapseAdvanced}
-          onChange={(v) => setSettings({ uiAutoCollapseAdvanced: v })}
         />
 
         <div className="border-t border-stroke/80 pt-5">

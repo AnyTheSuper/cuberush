@@ -115,6 +115,8 @@ export type Session = {
   createdAt: number;
   event: CubeEvent;
   discipline: Discipline;
+  /** Stable key representing this setup (mode + cube, or multi cube list). */
+  setupKey?: string;
   /** Multi-cube round order for this session (used for stats/times grouping). */
   multiRoundEvents?: CubeEvent[];
   solves: Solve[];
@@ -135,8 +137,12 @@ export type Settings = {
   otherDisciplineMultiplier: number;
   /** Whether advanced controls are expanded by default. */
   uiAdvancedOpen: boolean;
-  /** Whether the advanced panel auto-collapses after a selection. */
-  uiAutoCollapseAdvanced: boolean;
+  /** Default mode for quick start (used when creating the first setup session). */
+  defaultDiscipline: Discipline;
+  /** Default cube for quick start (used when creating the first setup session). */
+  defaultEvent: CubeEvent;
+  /** Default multi cube list (only used when defaultDiscipline is multi). */
+  defaultMultiEvents: CubeEvent[];
 };
 
 export type MultiSolvePlan = {

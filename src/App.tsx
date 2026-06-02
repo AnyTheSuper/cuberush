@@ -1,16 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useAppStore } from './store/useAppStore';
 import { AuthGate } from './components/AuthGate';
-import { GraphPanel } from './components/GraphPanel';
 import { Header } from './components/Header';
-import { TimesList } from './components/TimesList';
-import { SessionsPanel } from './components/SessionsPanel';
 import { SettingsModal } from './components/SettingsModal';
-import { StatsPanel } from './components/StatsPanel';
 import { TimerDisplay } from './components/TimerDisplay';
 import { TopBar } from './components/TopBar';
-import { XpPanel } from './components/XpPanel';
 import { AchievementPopup } from './components/AchievementPopup';
+import { SetupCard } from './components/SetupCard';
+import { DashboardPanel } from './components/DashboardPanel';
 import { useIsSignedIn } from './store/useAuthStore';
 import { useAuthStore } from './store/useAuthStore';
 
@@ -42,7 +39,7 @@ export default function App() {
       <div className="px-3 py-3 md:px-5 md:py-5">
         <div className="mx-auto grid max-w-[1400px] grid-cols-1 gap-4 md:grid-cols-[260px_1fr_380px]">
           <aside className="md:sticky md:top-[6.25rem] md:h-[calc(100vh-7.25rem)]">
-            <SessionsPanel />
+            <SetupCard />
           </aside>
 
           <main className="flex flex-col">
@@ -53,18 +50,10 @@ export default function App() {
                 <TimerDisplay />
               </div>
             </div>
-
-            <div className="mt-4">
-              <StatsPanel />
-            </div>
-            <div className="mt-4">
-              <XpPanel />
-            </div>
           </main>
 
           <aside className="flex flex-col gap-4 md:sticky md:top-[6.25rem] md:max-h-[calc(100vh-7.25rem)] md:overflow-y-auto">
-            <TimesList />
-            <GraphPanel />
+            <DashboardPanel />
           </aside>
         </div>
       </div>
