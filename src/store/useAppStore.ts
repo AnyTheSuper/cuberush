@@ -12,6 +12,7 @@ import type {
 } from '../types';
 import {
   getSessionRoundConfig,
+  eventSessionLabel,
   inferMultiRoundEvents,
   multiSolveEventAt,
 } from '../lib/events';
@@ -111,7 +112,7 @@ function setupNameFor(input: {
             : d === 'other'
               ? 'Other'
               : d;
-  return `${disciplineLabel} · ${input.event}`;
+  return `${disciplineLabel} · ${eventSessionLabel(input.event)}`;
 }
 
 function makeSetupSession(input: {
@@ -356,18 +357,15 @@ export const useAppStore = create<AppState>((set, get) => {
   const persisted = initialPersisted();
   let activeMultiRoundId: string | null = null;
 
-  const ensureSetupSession = (input: {
-    discipline: Discipline;
-    event: CubeEvent;
-    multiEvents?: CubeEvent[];
-  }) => {
+  const upsertSetupSession = (
+    sessions: Session[],
+    input: { discipline: Discipline; event: CubeEvent; multiEvents?: CubeEvent[] },
+  ): { session: Session; sessions: Session[] } => {
     const key = setupKeyFor(input);
-    const st = get();
-    const existing = st.sessions.find((s) => (s.setupKey ?? '') === key);
-    if (existing) return existing;
+    const existing = sessions.find((s) => (s.setupKey ?? '') === key);
+    if (existing) return { session: existing, sessions };
     const created = makeSetupSession(input);
-    set((prev) => ({ sessions: [created, ...prev.sessions] }));
-    return created;
+    return { session: created, sessions: [created, ...sessions] };
   };
 
   const persistNow = () => {
@@ -393,45 +391,46 @@ export const useAppStore = create<AppState>((set, get) => {
 
     setEvent: (event) => {
       // Setup-driven: changing cube switches to that Mode+Cube session.
-      const st = get();
-      const session = st.sessions.find((s) => s.id === st.currentSessionId);
-      const discipline = session?.discipline ?? 'standard';
+      set((st) => {
+        const cur = st.sessions.find((s) => s.id === st.currentSessionId);
+        const discipline = cur?.discipline ?? 'standard';
 
-      if (discipline === 'multi') {
-        // In multi mode, treat event as first cube in the list.
-        const events =
-          st.multiSolve.events.length > 0 ? [...st.multiSolve.events] : [event];
-        if (events[0] !== event) events[0] = event;
-        const nextSession = ensureSetupSession({
-          discipline: 'multi',
-          event,
-          multiEvents: events,
-        });
-        set(() => ({
-          currentSessionId: nextSession.id,
-          multiSolve: { index: 0, events },
-        }));
+        if (discipline === 'multi') {
+          const events =
+            st.multiSolve.events.length > 0 ? [...st.multiSolve.events] : [event];
+          if (events[0] !== event) events[0] = event;
+          const next = upsertSetupSession(st.sessions, {
+            discipline: 'multi',
+            event,
+            multiEvents: events,
+          });
+          queueMicrotask(persistNow);
+          queueMicrotask(() => get().refreshOfficialScramble(event));
+          return {
+            sessions: next.sessions,
+            currentSessionId: next.session.id,
+            multiSolve: { index: 0, events },
+          };
+        }
+
+        const next = upsertSetupSession(st.sessions, { discipline, event });
         queueMicrotask(persistNow);
-        get().refreshOfficialScramble(event);
-        return;
-      }
-
-      const nextSession = ensureSetupSession({ discipline, event });
-      set(() => ({
-        currentSessionId: nextSession.id,
-        multiSolve: { index: 0, events: [event] },
-        scrambleByEvent: {
-          ...get().scrambleByEvent,
-          [event]: generateScrambleSync(event),
-        },
-      }));
+        queueMicrotask(() => get().refreshOfficialScramble(event));
+        return {
+          sessions: next.sessions,
+          currentSessionId: next.session.id,
+          multiSolve: { index: 0, events: [event] },
+          scrambleByEvent: {
+            ...st.scrambleByEvent,
+            [event]: generateScrambleSync(event),
+          },
+        };
+      });
       queueMicrotask(persistNow);
-      get().refreshOfficialScramble(event);
     },
 
     setDiscipline: (discipline) =>
-      (() => {
-        const st = get();
+      set((st) => {
         const cur = st.sessions.find((s) => s.id === st.currentSessionId);
         const event = cur?.event ?? st.settings.defaultEvent ?? '333';
 
@@ -440,26 +439,27 @@ export const useAppStore = create<AppState>((set, get) => {
             st.multiSolve.events.length > 1
               ? [...st.multiSolve.events]
               : [...(st.settings.defaultMultiEvents ?? [event])];
-          const nextSession = ensureSetupSession({
+          const next = upsertSetupSession(st.sessions, {
             discipline: 'multi',
             event: events[0] ?? event,
             multiEvents: events,
           });
-          set(() => ({
-            currentSessionId: nextSession.id,
-            multiSolve: { index: 0, events },
-          }));
           queueMicrotask(persistNow);
-          return;
+          return {
+            sessions: next.sessions,
+            currentSessionId: next.session.id,
+            multiSolve: { index: 0, events },
+          };
         }
 
-        const nextSession = ensureSetupSession({ discipline, event });
-        set(() => ({
-          currentSessionId: nextSession.id,
-          multiSolve: { index: 0, events: [event] },
-        }));
+        const next = upsertSetupSession(st.sessions, { discipline, event });
         queueMicrotask(persistNow);
-      })(),
+        return {
+          sessions: next.sessions,
+          currentSessionId: next.session.id,
+          multiSolve: { index: 0, events: [event] },
+        };
+      }),
 
     nextScramble: () => {
       const event =
@@ -553,15 +553,16 @@ export const useAppStore = create<AppState>((set, get) => {
         let scrambleByEvent = st.scrambleByEvent;
 
         if (discipline === 'multi') {
-          const nextSession = ensureSetupSession({
+          const next = upsertSetupSession(st.sessions, {
             discipline: 'multi',
             event: active,
             multiEvents: events,
           });
-          currentSessionId = nextSession.id;
+          sessions = next.sessions;
+          currentSessionId = next.session.id;
           // Ensure the session remembers its round order.
           sessions = sessions.map((s) =>
-            s.id === nextSession.id ? { ...s, multiRoundEvents: [...events] } : s,
+            s.id === next.session.id ? { ...s, multiRoundEvents: [...events] } : s,
           );
         } else {
           // Non-multi sessions: keep existing behavior for scramble event sync.

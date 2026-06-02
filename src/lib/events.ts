@@ -102,6 +102,19 @@ export function eventLabel(event: CubeEvent) {
   return EVENT_LABEL[event] ?? event;
 }
 
+/** Session/setup-friendly labels (e.g., 3x3x3 instead of 3×3). */
+export function eventSessionLabel(event: CubeEvent) {
+  const s = String(event);
+  if (/^\d+$/.test(s)) {
+    const n = s.length >= 4 ? parseInt(s.slice(0, 2), 10) : parseInt(s[0]!, 10);
+    if (Number.isFinite(n) && n > 0) return `${n}x${n}x${n}`;
+  }
+  if (s.startsWith('cuboid_')) {
+    return eventLabel(event).replaceAll('×', 'x');
+  }
+  return eventLabel(event).replaceAll('×', 'x');
+}
+
 export const DISCIPLINE_LABEL: Record<Discipline, string> = {
   standard: 'Standard',
   blind: 'Blind',
