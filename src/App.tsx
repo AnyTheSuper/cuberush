@@ -37,7 +37,7 @@ export default function App() {
       <Header onOpenSettings={() => setSettingsOpen(true)} />
 
       <div className="px-3 py-3 md:px-5 md:py-5">
-        <div className="mx-auto grid max-w-[1400px] grid-cols-1 gap-4 md:grid-cols-[260px_1fr_380px]">
+        <div className="mx-auto grid max-w-[1440px] grid-cols-1 gap-4 md:grid-cols-[280px_1fr_440px]">
           <aside className="md:sticky md:top-[6.25rem] md:h-[calc(100vh-7.25rem)] md:overflow-y-auto">
             <SetupCard />
           </aside>
