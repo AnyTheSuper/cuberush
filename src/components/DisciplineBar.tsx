@@ -14,7 +14,7 @@ const EXTRA_MODES: Array<{ id: Discipline; label: string }> = [
   { id: 'other', label: 'Other' },
 ];
 
-export function DisciplineBar() {
+export function DisciplineBar({ onChanged }: { onChanged?: () => void }) {
   const session = useAppStore((s) =>
     s.sessions.find((x) => x.id === s.currentSessionId),
   );
@@ -31,7 +31,10 @@ export function DisciplineBar() {
               label={it.label}
               sub={it.sub}
               active={active === it.id}
-              onClick={() => setDiscipline(it.id)}
+              onClick={() => {
+                setDiscipline(it.id);
+                onChanged?.();
+              }}
             />
           ))}
         </div>
@@ -41,7 +44,10 @@ export function DisciplineBar() {
               key={it.id}
               label={it.label}
               active={active === it.id}
-              onClick={() => setDiscipline(it.id)}
+              onClick={() => {
+                setDiscipline(it.id);
+                onChanged?.();
+              }}
               compact
             />
           ))}

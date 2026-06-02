@@ -1,7 +1,7 @@
 import { useAppStore } from '../store/useAppStore';
 import { PuzzleGrid } from './PuzzleGrid';
 
-export function MultiSolvePicker() {
+export function MultiSolvePicker({ onChanged }: { onChanged?: () => void }) {
   const multiSolve = useAppStore((s) => s.multiSolve);
   const toggleMultiSolveEvent = useAppStore((s) => s.toggleMultiSolveEvent);
   const selected = new Set(multiSolve.events);
@@ -19,7 +19,10 @@ export function MultiSolvePicker() {
       <PuzzleGrid
         mode="multi"
         selectedEvents={selected}
-        onPick={toggleMultiSolveEvent}
+        onPick={(e) => {
+          toggleMultiSolveEvent(e);
+          onChanged?.();
+        }}
         maxHeight="max-h-56"
       />
     </div>

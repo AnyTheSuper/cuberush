@@ -2,7 +2,7 @@ import type { CubeEvent } from '../types';
 import { useAppStore } from '../store/useAppStore';
 import { PuzzleGrid } from './PuzzleGrid';
 
-export function PuzzlePicker() {
+export function PuzzlePicker({ onChanged }: { onChanged?: () => void }) {
   const session = useAppStore((s) =>
     s.sessions.find((x) => x.id === s.currentSessionId),
   );
@@ -20,7 +20,10 @@ export function PuzzlePicker() {
       <PuzzleGrid
         mode="single"
         activeEvent={event}
-        onPick={(e) => setEvent(e as CubeEvent)}
+        onPick={(e) => {
+          setEvent(e as CubeEvent);
+          onChanged?.();
+        }}
       />
     </div>
   );

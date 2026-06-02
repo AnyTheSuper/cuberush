@@ -40,6 +40,8 @@ function defaultSettings(): Settings {
     timerFontScale: 1.0,
     accent: 'blue',
     otherDisciplineMultiplier: 1.2,
+    uiAdvancedOpen: false,
+    uiAutoCollapseAdvanced: true,
   };
 }
 
@@ -62,6 +64,11 @@ function normalizeSettings(settings: Settings): Settings {
       (settings as any).otherDisciplineMultiplier > 0
         ? (settings as any).otherDisciplineMultiplier
         : d.otherDisciplineMultiplier,
+    uiAdvancedOpen: Boolean((settings as any).uiAdvancedOpen),
+    uiAutoCollapseAdvanced:
+      (settings as any).uiAutoCollapseAdvanced == null
+        ? d.uiAutoCollapseAdvanced
+        : Boolean((settings as any).uiAutoCollapseAdvanced),
   };
 }
 

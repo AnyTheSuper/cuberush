@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   disciplineLabel,
   eventLabel,
@@ -19,6 +19,7 @@ export function TopBar() {
     s.sessions.find((x) => x.id === s.currentSessionId),
   );
   const settings = useAppStore((s) => s.settings);
+  const setSettings = useAppStore((s) => s.setSettings);
   const scrambleByEvent = useAppStore((s) => s.scrambleByEvent);
   const nextScramble = useAppStore((s) => s.nextScramble);
   const multiSolve = useAppStore((s) => s.multiSolve);
@@ -34,6 +35,21 @@ export function TopBar() {
     multiSolve.events,
     multiSolve.index,
   );
+
+  const [advancedOpen, setAdvancedOpen] = useState(settings.uiAdvancedOpen);
+  useEffect(() => {
+    setAdvancedOpen(settings.uiAdvancedOpen);
+  }, [settings.uiAdvancedOpen]);
+
+  const setAdvanced = (open: boolean) => {
+    setAdvancedOpen(open);
+    setSettings({ uiAdvancedOpen: open });
+  };
+
+  const handleChanged = () => {
+    if (!settings.uiAutoCollapseAdvanced) return;
+    setAdvanced(false);
+  };
 
   const inspectionHint = useMemo(() => {
     const limits = getInspectionLimits(settings, multiSolve.events.length);
@@ -63,76 +79,93 @@ export function TopBar() {
   ]);
 
   const statusLabel = multiMode ? 'Multi' : disciplineLabel(discipline);
-  const statusText = multiMode
-    ? complete
-      ? 'Done'
-      : progress
-    : eventLabel(event);
+
+  const scramblePreview = useMemo(() => {
+    const s = String(scramble ?? '').replace(/\s+/g, ' ').trim();
+    if (!s) return '';
+    return s.length > 72 ? `${s.slice(0, 72)}…` : s;
+  }, [scramble]);
 
   return (
     <>
-      <DisciplineBar />
-
-      <Card className="mb-4" title="Scramble">
-        <div className="flex flex-col gap-4">
-          {multiMode ? <MultiSolvePicker /> : <PuzzlePicker />}
-
-          {inspectionHint && (
-            <div className="rounded-lg border border-stat-green/40 bg-stat-green/10 px-3 py-2 text-xs text-stat-green">
-              {inspectionHint}
+      <div className="mb-4 rounded-xl2 border border-purple/25 bg-bg-panel shadow-panel">
+        <div className="flex flex-wrap items-center gap-2 border-b border-purple/15 px-4 py-3">
+          <div className="min-w-0">
+            <div className="text-xs font-semibold tracking-[0.2em] text-fg-subtle">
+              MODE & PUZZLE
             </div>
-          )}
-
-          <div className="flex flex-wrap items-center gap-2">
-            {multiMode && !complete && (
-              <div className="rounded-lg border border-stat-yellow/40 bg-stat-yellow/10 px-3 py-2 text-sm text-stat-yellow">
-                Now solving:{' '}
-                <span className="font-semibold">
-                  {eventLabel(currentMultiEvent)}
-                </span>
-              </div>
-            )}
-
-            {multiMode && complete && (
-              <div className="rounded-lg border border-stat-blue/40 bg-stat-blue/10 px-3 py-2 text-sm text-stat-blue">
-                Round complete — press Space or click the timer to start again
-              </div>
-            )}
-
-            <div className="ml-auto flex flex-wrap items-center gap-2">
-              <div
-                className={
-                  'max-w-[min(100%,32rem)] rounded-lg border px-3 py-2 text-sm ' +
-                  (multiMode && complete
-                    ? 'border-stat-green/40 bg-stat-green/10 text-stat-green'
-                    : 'border-stroke/70 bg-bg-panel2 text-fg-muted')
-                }
-                title={
-                  multiMode
-                    ? 'One solve per selected cube'
-                    : `${statusLabel} · ${statusText}`
-                }
-              >
-                {statusLabel}:{' '}
-                <span
-                  className={
-                    multiMode && complete ? 'font-semibold' : 'text-fg'
-                  }
-                >
-                  {statusText}
-                </span>
-              </div>
-              <Button variant="purple" onClick={nextScramble}>
-                Next scramble
-              </Button>
+            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+              <span className="font-semibold text-fg">{statusLabel}</span>
+              <span className="text-fg-muted">·</span>
+              <span className="text-fg">
+                {multiMode ? (complete ? 'Done' : progress) : eventLabel(event)}
+              </span>
             </div>
           </div>
 
-          <div className="rounded-xl border border-purple/20 bg-bg-inset px-4 py-3 font-mono text-sm leading-relaxed whitespace-pre-wrap text-fg">
-            {scramble}
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            {!advancedOpen && (
+              <div
+                className="max-w-[min(100%,28rem)] truncate rounded-lg border border-stroke/70 bg-bg-panel2 px-3 py-2 text-xs text-fg-muted"
+                title={scramble}
+              >
+                {scramblePreview}
+              </div>
+            )}
+            <Button variant="ghost" onClick={() => setAdvanced(!advancedOpen)}>
+              {advancedOpen ? 'Close' : 'Change'}
+            </Button>
+            <Button variant="purple" onClick={nextScramble}>
+              Next scramble
+            </Button>
           </div>
         </div>
-      </Card>
+
+        {advancedOpen && (
+          <div className="px-4 py-3">
+            <div className="space-y-4">
+              <DisciplineBar onChanged={handleChanged} />
+
+              <Card title="Scramble">
+                <div className="flex flex-col gap-4">
+                  {multiMode ? (
+                    <MultiSolvePicker onChanged={handleChanged} />
+                  ) : (
+                    <PuzzlePicker onChanged={handleChanged} />
+                  )}
+
+                  {inspectionHint && (
+                    <div className="rounded-lg border border-stat-green/40 bg-stat-green/10 px-3 py-2 text-xs text-stat-green">
+                      {inspectionHint}
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    {multiMode && !complete && (
+                      <div className="rounded-lg border border-stat-yellow/40 bg-stat-yellow/10 px-3 py-2 text-sm text-stat-yellow">
+                        Now solving:{' '}
+                        <span className="font-semibold">
+                          {eventLabel(currentMultiEvent)}
+                        </span>
+                      </div>
+                    )}
+
+                    {multiMode && complete && (
+                      <div className="rounded-lg border border-stat-blue/40 bg-stat-blue/10 px-3 py-2 text-sm text-stat-blue">
+                        Round complete — press Space or click the timer to start again
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="rounded-xl border border-purple/20 bg-bg-inset px-4 py-3 font-mono text-sm leading-relaxed whitespace-pre-wrap text-fg">
+                    {scramble}
+                  </div>
+                </div>
+              </Card>
+            </div>
+          </div>
+        )}
+      </div>
     </>
   );
 }

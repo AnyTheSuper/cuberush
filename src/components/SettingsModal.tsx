@@ -122,6 +122,18 @@ export function SettingsModal({
           onChange={(v) => setSettings({ otherDisciplineMultiplier: v })}
         />
 
+        <ToggleRow
+          label="Show advanced puzzle & discipline controls by default"
+          checked={settings.uiAdvancedOpen}
+          onChange={(v) => setSettings({ uiAdvancedOpen: v })}
+        />
+
+        <ToggleRow
+          label="Auto-collapse advanced controls after changing"
+          checked={settings.uiAutoCollapseAdvanced}
+          onChange={(v) => setSettings({ uiAutoCollapseAdvanced: v })}
+        />
+
         <div className="border-t border-stroke/80 pt-5">
           <div className="text-sm font-medium text-fg">Reset everything</div>
           <p className="mt-1 text-xs text-fg-subtle">

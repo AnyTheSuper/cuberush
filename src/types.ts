@@ -133,6 +133,10 @@ export type Settings = {
   accent: ThemeAccent;
   /** Configurable multiplier for the "Other" discipline XP. */
   otherDisciplineMultiplier: number;
+  /** Whether advanced controls are expanded by default. */
+  uiAdvancedOpen: boolean;
+  /** Whether the advanced panel auto-collapses after a selection. */
+  uiAutoCollapseAdvanced: boolean;
 };
 
 export type MultiSolvePlan = {
