@@ -21,12 +21,11 @@ import {
   generateScrambleSync,
   shouldAutoNextScramble,
 } from '../lib/scramble';
+import { appStorageKey, clearAllAppStorageBuckets } from '../lib/storage';
 import { bestMs, roundTotalMs, solveToMs } from '../lib/stats';
 import { groupIntoRounds } from '../lib/rounds';
 import { xpForMultiCubeSolve, xpForMultiRoundBonus, xpForSingleSolve } from '../lib/xp/engine';
 import { createEmptyXpProfile, pushTransaction, unlockAchievement } from '../lib/xp/profile';
-
-const LS_KEY = 'cube-timer:v1';
 
 function uid() {
   return Math.random().toString(16).slice(2) + Date.now().toString(16);
@@ -110,7 +109,7 @@ type Persisted = {
 
 function loadPersisted(): Persisted | null {
   try {
-    const raw = localStorage.getItem(LS_KEY);
+    const raw = localStorage.getItem(appStorageKey());
     if (!raw) return null;
     return JSON.parse(raw) as Persisted;
   } catch {
@@ -120,7 +119,7 @@ function loadPersisted(): Persisted | null {
 
 function savePersisted(p: Persisted) {
   try {
-    localStorage.setItem(LS_KEY, JSON.stringify(p));
+    localStorage.setItem(appStorageKey(), JSON.stringify(p));
   } catch {
     // ignore
   }
@@ -160,6 +159,7 @@ type AppState = Persisted & {
   deleteSolves: (solveIds: string[]) => void;
 
   resetAllData: () => void;
+  rehydrateFromStorage: () => void;
 
   refreshOfficialScramble: (event: CubeEvent) => void;
   hydrateOfficialScrambles: () => void;
@@ -637,11 +637,17 @@ export const useAppStore = create<AppState>((set, get) => {
       }),
 
     resetAllData: () => {
-      try {
-        localStorage.removeItem(LS_KEY);
-      } catch {
-        // ignore
-      }
+      clearAllAppStorageBuckets();
+      const fresh = initialPersisted();
+      set({
+        ...fresh,
+        timer: defaultTimerState(),
+        lastSolveId: null,
+      });
+      queueMicrotask(() => get().hydrateOfficialScrambles());
+    },
+
+    rehydrateFromStorage: () => {
       const fresh = initialPersisted();
       set({
         ...fresh,

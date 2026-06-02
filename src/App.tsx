@@ -11,16 +11,23 @@ import { TimerDisplay } from './components/TimerDisplay';
 import { TopBar } from './components/TopBar';
 import { XpPanel } from './components/XpPanel';
 import { useIsSignedIn } from './store/useAuthStore';
+import { useAuthStore } from './store/useAuthStore';
 
 export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const signedIn = useIsSignedIn();
   const hydrateOfficialScrambles = useAppStore((s) => s.hydrateOfficialScrambles);
+  const currentUsername = useAuthStore((s) => s.currentUsername);
 
   useEffect(() => {
     if (!signedIn) return;
     hydrateOfficialScrambles();
   }, [hydrateOfficialScrambles, signedIn]);
+
+  // Switch localStorage bucket when account changes (logout/new account gets fresh XP).
+  useEffect(() => {
+    useAppStore.getState().rehydrateFromStorage();
+  }, [currentUsername]);
 
   if (!signedIn) {
     return <AuthGate />;
