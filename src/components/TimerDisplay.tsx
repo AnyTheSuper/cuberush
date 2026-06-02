@@ -15,6 +15,7 @@ export function TimerDisplay() {
   const timer = useAppStore((s) => s.timer);
   const settings = useAppStore((s) => s.settings);
   const multiSolve = useAppStore((s) => s.multiSolve);
+  const lastEarned = useAppStore((s) => s.xp.lastEarned);
   const solves = useAppStore(
     (s) => s.sessions.find((x) => x.id === s.currentSessionId)?.solves ?? [],
   );
@@ -27,11 +28,8 @@ export function TimerDisplay() {
     inspectionPenalty,
     runningElapsedMs,
     inspectionLimitSec,
-    inspectionReadyHeld,
-    surfaceRef,
-    onPointerDown,
-    onPointerUp,
-    onPointerCancel,
+    onTimerClick,
+    onTimerTouchStart,
   } = useTimerInput();
 
   const multiDone = isMultiComplete(multiSolve);
@@ -79,11 +77,7 @@ export function TimerDisplay() {
     ? roundTotal == null
       ? 'text-bad'
       : 'text-white'
-    : timer.phase === 'armed' ||
-        timer.phase === 'armedToStart' ||
-        (timer.phase === 'inspecting' && inspectionReadyHeld)
-      ? 'text-stat-green'
-      : timer.phase === 'running'
+    : timer.phase === 'running'
         ? 'text-white'
         : inspectionPenalty === 'DNF'
           ? 'text-bad'
@@ -92,25 +86,23 @@ export function TimerDisplay() {
             : 'text-white/90';
 
   const hintText = multiDone
-    ? 'Tap here or press Space to start the next round'
-    : timer.phase === 'running' && multiMode
-      ? 'Tap to finish this cube'
+    ? 'Press Space or tap to start the next round'
+    : timer.phase === 'running'
+      ? multiMode
+        ? 'Press Space or tap to finish this cube'
+        : 'Press Space or tap to stop'
       : timer.phase === 'inspecting' || timer.phase === 'armedToStart'
-        ? 'Press Space or tap and hold, then release to start the solve'
-        : timer.phase === 'armed'
-          ? 'Release click/tap to start inspection, or press Space'
-          : 'Press Space or tap and hold the timer, release to start';
+        ? 'Press Space or tap to start the solve'
+        : 'Press Space or tap to start';
 
   return (
     <div
-      ref={surfaceRef}
       className="grid h-full min-h-[min(50vh,420px)] cursor-pointer place-items-center px-4 py-10 touch-manipulation select-none [-webkit-tap-highlight-color:transparent] [-webkit-touch-callout:none]"
-      onPointerDown={onPointerDown}
-      onPointerUp={onPointerUp}
-      onPointerCancel={onPointerCancel}
+      onClick={onTimerClick}
+      onTouchStart={onTimerTouchStart}
       role="button"
-      tabIndex={0}
-      aria-label="Timer — tap and hold to start and stop"
+      tabIndex={-1}
+      aria-label="Timer — press Space or tap to start and stop"
     >
       <div className="pointer-events-none text-center">
         <div
@@ -126,6 +118,21 @@ export function TimerDisplay() {
           {subText}
         </div>
         <div className="mt-6 text-sm text-white/50">{hintText}</div>
+        {lastEarned && lastEarned.breakdown.totalXp > 0 && (
+          <div
+            className="mt-2 inline-flex items-center gap-2 rounded-full border border-purple/25 bg-white/[0.06] px-3 py-1 text-xs font-semibold text-white/80"
+            title={
+              `XP Earned: ${lastEarned.breakdown.totalXp}\n` +
+              `Base XP: ${lastEarned.breakdown.baseXp}\n` +
+              `Discipline Bonus: ${lastEarned.breakdown.disciplineBonusXp}\n` +
+              `PB Bonus: ${lastEarned.breakdown.pbBonusXp}\n` +
+              `Streak Bonus: ${lastEarned.breakdown.streakBonusXp}\n` +
+              `Multi Bonus: ${lastEarned.breakdown.multiBonusXp}`
+            }
+          >
+            +{lastEarned.breakdown.totalXp} XP
+          </div>
+        )}
       </div>
     </div>
   );

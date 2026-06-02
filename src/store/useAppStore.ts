@@ -8,14 +8,23 @@ import type {
   Solve,
   SolvePenalty,
   TimerState,
+  XpProfile,
 } from '../types';
-import { inferMultiRoundEvents, multiSolveEventAt } from '../lib/events';
+import {
+  getSessionRoundConfig,
+  inferMultiRoundEvents,
+  multiSolveEventAt,
+} from '../lib/events';
 import {
   buildDefaultScrambleMap,
   generateScramble,
   generateScrambleSync,
   shouldAutoNextScramble,
 } from '../lib/scramble';
+import { bestMs, roundTotalMs, solveToMs } from '../lib/stats';
+import { groupIntoRounds } from '../lib/rounds';
+import { xpForMultiCubeSolve, xpForMultiRoundBonus, xpForSingleSolve } from '../lib/xp/engine';
+import { createEmptyXpProfile, pushTransaction, unlockAchievement } from '../lib/xp/profile';
 
 const LS_KEY = 'cube-timer:v1';
 
@@ -31,6 +40,7 @@ function defaultSettings(): Settings {
     soundEnabled: false,
     timerFontScale: 1.0,
     accent: 'blue',
+    otherDisciplineMultiplier: 1.2,
   };
 }
 
@@ -48,6 +58,11 @@ function normalizeSettings(settings: Settings): Settings {
       settings.inspectionBonusPerCubeSeconds >= 0
         ? settings.inspectionBonusPerCubeSeconds
         : d.inspectionBonusPerCubeSeconds,
+    otherDisciplineMultiplier:
+      Number.isFinite((settings as any).otherDisciplineMultiplier) &&
+      (settings as any).otherDisciplineMultiplier > 0
+        ? (settings as any).otherDisciplineMultiplier
+        : d.otherDisciplineMultiplier,
   };
 }
 
@@ -90,6 +105,7 @@ type Persisted = {
   settings: Settings;
   multiSolve: MultiSolvePlan;
   scrambleByEvent: Record<CubeEvent, string>;
+  xp: XpProfile;
 };
 
 function loadPersisted(): Persisted | null {
@@ -213,6 +229,7 @@ function initialPersisted(): Persisted {
       settings: normalizeSettings(base.settings),
       multiSolve,
       ...synced,
+      xp: (base as any).xp?.version === 1 ? (base as any).xp : createEmptyXpProfile(),
     };
   }
 
@@ -223,14 +240,16 @@ function initialPersisted(): Persisted {
     settings: defaultSettings(),
     multiSolve: { index: 0, events: ['333'] },
     scrambleByEvent: buildDefaultScrambleMap(),
+    xp: createEmptyXpProfile(),
   };
 }
 
 export const useAppStore = create<AppState>((set, get) => {
   const persisted = initialPersisted();
+  let activeMultiRoundId: string | null = null;
 
   const persistNow = () => {
-    const { sessions, currentSessionId, settings, multiSolve, scrambleByEvent } =
+    const { sessions, currentSessionId, settings, multiSolve, scrambleByEvent, xp } =
       get();
     savePersisted({
       sessions,
@@ -238,6 +257,7 @@ export const useAppStore = create<AppState>((set, get) => {
       settings,
       multiSolve,
       scrambleByEvent,
+      xp,
     });
   };
 
@@ -398,9 +418,30 @@ export const useAppStore = create<AppState>((set, get) => {
       set((st) => {
         const session = st.sessions.find((s) => s.id === st.currentSessionId);
         if (!session) return {};
+        const { multiMode, roundEvents, roundSize } = getSessionRoundConfig(
+          session,
+          st.multiSolve,
+        );
+
         const event = session.event;
+        const effectiveDiscipline: Discipline = multiMode ? 'multi' : session.discipline;
         const scramble =
           st.scrambleByEvent[event] ?? generateScrambleSync(event);
+        const roundId =
+          effectiveDiscipline === 'multi'
+            ? activeMultiRoundId ?? (activeMultiRoundId = uid())
+            : undefined;
+
+        const prevSolves = session.solves;
+        const prevBestSingle =
+          effectiveDiscipline === 'multi'
+            ? null
+            : bestMs(
+                prevSolves.filter(
+                  (s) => s.discipline === effectiveDiscipline && s.event === event,
+                ),
+              );
+
         const solve: Solve = {
           id: uid(),
           startedAt,
@@ -409,10 +450,148 @@ export const useAppStore = create<AppState>((set, get) => {
           penalty,
           scramble,
           event,
+          discipline: effectiveDiscipline,
+          xp: null,
+          roundId,
         };
+
+        const isSinglePb =
+          effectiveDiscipline !== 'multi' &&
+          penalty !== 'DNF' &&
+          (prevBestSingle == null || solveToMs(solve) < prevBestSingle);
+
+        const nextStreak =
+          penalty === 'DNF'
+            ? 0
+            : (st.xp.currentStreakByDiscipline[effectiveDiscipline] ?? 0) + 1;
+
+        const xpCfg = { otherMultiplier: st.settings.otherDisciplineMultiplier };
+        const xpBreakdown =
+          effectiveDiscipline === 'multi'
+            ? xpForMultiCubeSolve({ event, penalty })
+            : xpForSingleSolve({
+                event,
+                discipline: effectiveDiscipline,
+                penalty,
+                isPb: isSinglePb,
+                nextStreak,
+                cfg: xpCfg,
+              });
+
+        solve.xp = xpBreakdown;
+
         const sessions = st.sessions.map((s) =>
           s.id === session.id ? { ...s, solves: [solve, ...s.solves] } : s,
         );
+
+        // XP profile update (transactions + discipline stats + achievements)
+        let xp = st.xp;
+        const txAt = endedAt;
+
+        xp = pushTransaction(xp, {
+          id: uid(),
+          at: txAt,
+          kind: 'solve',
+          discipline: effectiveDiscipline,
+          event,
+          solveId: solve.id,
+          roundId,
+          breakdown: xpBreakdown,
+        });
+
+        xp = {
+          ...xp,
+          solveCountByDiscipline: {
+            ...xp.solveCountByDiscipline,
+            [effectiveDiscipline]:
+              (xp.solveCountByDiscipline[effectiveDiscipline] ?? 0) + 1,
+          },
+          currentStreakByDiscipline: {
+            ...xp.currentStreakByDiscipline,
+            [effectiveDiscipline]: nextStreak,
+          },
+        };
+
+        if (effectiveDiscipline === 'blind') {
+          if (xp.solveCountByDiscipline.blind === 1) {
+            xp = unlockAchievement(xp, 'firstBlindSolve', txAt);
+          }
+          if (xp.solveCountByDiscipline.blind === 100) {
+            xp = unlockAchievement(xp, 'blindMaster100', txAt);
+          }
+        }
+        if (effectiveDiscipline === 'oneHanded') {
+          if (xp.solveCountByDiscipline.oneHanded === 1) {
+            xp = unlockAchievement(xp, 'firstOneHandedSolve', txAt);
+          }
+        }
+
+        // Multi: if this was the last cube in a round, award round bonus once.
+        const cubesInRound = Math.max(1, roundEvents?.length ?? roundSize);
+        const isEndOfRound =
+          effectiveDiscipline === 'multi' && st.multiSolve.index + 1 >= cubesInRound;
+
+        if (effectiveDiscipline === 'multi' && isEndOfRound) {
+          const newSolves = [solve, ...prevSolves];
+          const rounds = groupIntoRounds(newSolves, cubesInRound);
+          const newest = rounds[0];
+          const roundTotal =
+            newest?.complete ? roundTotalMs(newest.solves, newest.solves.length) : null;
+          const roundDidDnf = roundTotal == null;
+
+          let best = Infinity;
+          for (const r of rounds) {
+            if (!r.complete) continue;
+            const t = roundTotalMs(r.solves, r.solves.length);
+            if (t == null) continue;
+            best = Math.min(best, t);
+          }
+          const isPb = roundTotal != null && roundTotal === best;
+
+          const nextMultiStreak = roundDidDnf
+            ? 0
+            : (xp.currentStreakByDiscipline.multi ?? 0) + 1;
+
+          const bonusBreakdown = xpForMultiRoundBonus({
+            cubesSolved: cubesInRound,
+            roundDidDnf,
+            isPb,
+            nextStreak: nextMultiStreak,
+          });
+
+          xp = pushTransaction(xp, {
+            id: uid(),
+            at: txAt,
+            kind: 'multiRoundBonus',
+            discipline: 'multi',
+            event: null,
+            roundId,
+            breakdown: bonusBreakdown,
+          });
+
+          xp = {
+            ...xp,
+            multiRoundsCompleted: xp.multiRoundsCompleted + 1,
+            bestMultiCubesSolved: Math.max(xp.bestMultiCubesSolved, cubesInRound),
+            currentStreakByDiscipline: {
+              ...xp.currentStreakByDiscipline,
+              multi: nextMultiStreak,
+            },
+          };
+
+          if (xp.multiRoundsCompleted === 1) {
+            xp = unlockAchievement(xp, 'firstMultiSolve', txAt);
+          }
+          if (cubesInRound >= 5) {
+            xp = unlockAchievement(xp, 'multiSolved5Cubes', txAt);
+          }
+          if (cubesInRound >= 10) {
+            xp = unlockAchievement(xp, 'multiSolved10Cubes', txAt);
+          }
+
+          activeMultiRoundId = null;
+        }
+
         const scrambleByEvent = shouldAutoNextScramble(event)
           ? { ...st.scrambleByEvent, [event]: generateScrambleSync(event) }
           : st.scrambleByEvent;
@@ -420,7 +599,7 @@ export const useAppStore = create<AppState>((set, get) => {
         if (shouldAutoNextScramble(event)) {
           queueMicrotask(() => get().refreshOfficialScramble(event));
         }
-        return { sessions, lastSolveId: solve.id, scrambleByEvent };
+        return { sessions, lastSolveId: solve.id, scrambleByEvent, xp };
       }),
 
     deleteSolve: (solveId) =>

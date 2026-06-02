@@ -5,6 +5,7 @@ import { groupIntoRounds } from '../lib/rounds';
 import { roundSessionStats } from '../lib/rounds';
 import { formatSolveTime, roundTotalMs, solveToMs } from '../lib/stats';
 import { formatMs } from '../lib/time';
+import { disciplineIcon } from '../lib/xp/icons';
 import { useAppStore } from '../store/useAppStore';
 import { RoundDetailsModal } from './RoundDetailsModal';
 import { Card } from './ui/Card';
@@ -242,9 +243,27 @@ function SingleSolveRow({
         {formatSolveTime(solve)}
       </span>
       <span className="truncate text-xs text-fg-muted">
+        <span className="mr-2" title={`Discipline: ${solve.discipline}`}>
+          {disciplineIcon(solve.discipline)}
+        </span>
         {eventLabel(solve.event)}
       </span>
       <div className="ml-auto flex shrink-0 items-center gap-2">
+        {solve.xp && (
+          <span
+            className="rounded border border-purple/20 bg-purple/10 px-2 py-1 text-[10px] font-bold tracking-wide text-purple-light"
+            title={
+              `XP: ${solve.xp.totalXp}\n` +
+              `Base XP: ${solve.xp.baseXp}\n` +
+              `Discipline Bonus: ${solve.xp.disciplineBonusXp}\n` +
+              `PB Bonus: ${solve.xp.pbBonusXp}\n` +
+              `Streak Bonus: ${solve.xp.streakBonusXp}\n` +
+              `Multi Bonus: ${solve.xp.multiBonusXp}`
+            }
+          >
+            +{solve.xp.totalXp} XP
+          </span>
+        )}
         {solve.penalty !== 'OK' && (
           <span
             className={

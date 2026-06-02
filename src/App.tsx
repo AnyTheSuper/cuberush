@@ -9,6 +9,7 @@ import { SettingsModal } from './components/SettingsModal';
 import { StatsPanel } from './components/StatsPanel';
 import { TimerDisplay } from './components/TimerDisplay';
 import { TopBar } from './components/TopBar';
+import { XpPanel } from './components/XpPanel';
 import { useIsSignedIn } from './store/useAuthStore';
 
 export default function App() {
@@ -46,6 +47,9 @@ export default function App() {
 
             <div className="mt-4">
               <StatsPanel />
+            </div>
+            <div className="mt-4">
+              <XpPanel />
             </div>
           </main>
 

@@ -3,7 +3,6 @@ import {
   useEffect,
   useMemo,
   useRef,
-  useState,
 } from 'react';
 import { isMultiComplete, isLiveMultiMode } from '../lib/events';
 import {
@@ -11,7 +10,7 @@ import {
   inspectionPenaltyFromElapsed,
 } from '../lib/inspection';
 import { useAppStore } from '../store/useAppStore';
-import type { SolvePenalty, TimerPhase } from '../types';
+import type { TimerPhase } from '../types';
 
 function isEditableTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) return false;
@@ -32,28 +31,19 @@ export function useTimerInput() {
   const resetMultiSolve = useAppStore((s) => s.resetMultiSolve);
   const setNowMs = useAppStore((s) => s.setNowMs);
 
-  const inputHeldRef = useRef(false);
   const solveStartedEpochRef = useRef<number | null>(null);
   const solveStartedPerfRef = useRef<number | null>(null);
-  const pendingPenaltyRef = useRef<SolvePenalty>('OK');
-  const touchActiveRef = useRef(false);
-  const inspectionReadyHeldRef = useRef(false);
-  const inspectionReadySinceRef = useRef(0);
-  /** Ignore stop / duplicate press briefly after the solve timer starts. */
+  const pendingPenaltyRef = useRef<'OK' | '+2' | 'DNF'>('OK');
   const runGuardUntilRef = useRef(0);
-  const [inspectionReadyHeld, setInspectionReadyHeld] = useState(false);
-  const surfaceCleanupRef = useRef<(() => void) | null>(null);
+  const lastActivateAtRef = useRef(0);
+  const skipNextClickRef = useRef(false);
+  const activateRef = useRef(() => {});
 
   const armRunGuard = () => {
-    runGuardUntilRef.current = performance.now() + 600;
+    runGuardUntilRef.current = performance.now() + 500;
   };
 
   const canStopRunning = () => performance.now() >= runGuardUntilRef.current;
-  const handlersRef = useRef({
-    onPressDown: () => {},
-    onPressUp: () => {},
-    cancelActiveTimer: () => {},
-  });
 
   useEffect(() => {
     let raf = 0;
@@ -72,10 +62,6 @@ export function useTimerInput() {
 
   useEffect(() => {
     const cancelActiveTimer = () => {
-      inputHeldRef.current = false;
-      touchActiveRef.current = false;
-      inspectionReadyHeldRef.current = false;
-      setInspectionReadyHeld(false);
       pendingPenaltyRef.current = 'OK';
       solveStartedEpochRef.current = null;
       solveStartedPerfRef.current = null;
@@ -103,25 +89,6 @@ export function useTimerInput() {
   }, [timerSetPhase]);
 
   useEffect(() => {
-    const releaseInput = () => {
-      inputHeldRef.current = false;
-      touchActiveRef.current = false;
-      inspectionReadyHeldRef.current = false;
-      setInspectionReadyHeld(false);
-    };
-
-    const cancelActiveTimer = () => {
-      releaseInput();
-      pendingPenaltyRef.current = 'OK';
-      solveStartedEpochRef.current = null;
-      solveStartedPerfRef.current = null;
-      timerSetPhase('idle', {
-        armedAt: null,
-        inspectionStartedAt: null,
-        runningStartedAt: null,
-      });
-    };
-
     const prepareRound = () => {
       const st = useAppStore.getState();
       if (isMultiComplete(st.multiSolve)) {
@@ -150,8 +117,6 @@ export function useTimerInput() {
         inspElapsed,
         limits,
       );
-      inspectionReadyHeldRef.current = false;
-      setInspectionReadyHeld(false);
       solveStartedEpochRef.current = Date.now();
       solveStartedPerfRef.current = now;
       armRunGuard();
@@ -183,8 +148,6 @@ export function useTimerInput() {
       const after = useAppStore.getState();
       const roundDone = isMultiComplete(after.multiSolve);
 
-      releaseInput();
-
       if (multiMode && !roundDone && roundStartedAt != null) {
         pendingPenaltyRef.current = 'OK';
         solveStartedEpochRef.current = Date.now();
@@ -208,16 +171,18 @@ export function useTimerInput() {
       });
     };
 
-    /** Space bar: one press per step (no hold-to-start). */
-    const onKeyboardSpaceDown = () => {
+    /** One press / one tap advances: idle → inspection → solve → stop */
+    const onActivate = () => {
+      const now = performance.now();
+      if (now - lastActivateAtRef.current < 280) return;
+      lastActivateAtRef.current = now;
+
       prepareRound();
 
       const st = useAppStore.getState();
       const phase: TimerPhase = st.timer.phase;
-      const now = performance.now();
 
-      if (phase === 'idle' || phase === 'armed') {
-        inputHeldRef.current = false;
+      if (phase === 'idle' || phase === 'armed' || phase === 'armedToStart') {
         if (st.settings.inspectionEnabled) {
           pendingPenaltyRef.current = 'OK';
           timerSetPhase('inspecting', {
@@ -227,40 +192,11 @@ export function useTimerInput() {
         } else {
           beginRunning(now);
         }
-        return;
-      }
-
-      if (phase === 'inspecting' || phase === 'armedToStart') {
-        inputHeldRef.current = false;
-        beginRunningAfterInspection(now);
-        return;
-      }
-
-      if (phase === 'running') {
-        if (!canStopRunning()) return;
-        finishSolve(now);
-      }
-    };
-
-    const onPressDown = () => {
-      if (inputHeldRef.current) return;
-      inputHeldRef.current = true;
-
-      prepareRound();
-
-      const st = useAppStore.getState();
-      const phase: TimerPhase = st.timer.phase;
-      const now = performance.now();
-
-      if (phase === 'idle') {
-        timerSetPhase('armed', { armedAt: now });
         return;
       }
 
       if (phase === 'inspecting') {
-        inspectionReadyHeldRef.current = true;
-        inspectionReadySinceRef.current = performance.now();
-        setInspectionReadyHeld(true);
+        beginRunningAfterInspection(now);
         return;
       }
 
@@ -270,115 +206,22 @@ export function useTimerInput() {
       }
     };
 
-    const onPressUp = () => {
-      if (!inputHeldRef.current) return;
-      inputHeldRef.current = false;
-      touchActiveRef.current = false;
-
-      prepareRound();
-
-      const st = useAppStore.getState();
-      const phase: TimerPhase = st.timer.phase;
-      const now = performance.now();
-
-      if (phase === 'armed') {
-        if (st.settings.inspectionEnabled) {
-          pendingPenaltyRef.current = 'OK';
-          timerSetPhase('inspecting', {
-            inspectionStartedAt: now,
-            armedAt: null,
-          });
-        } else {
-          beginRunning(now);
-        }
-        return;
-      }
-
-      if (phase === 'inspecting' && inspectionReadyHeldRef.current) {
-        const heldMs = performance.now() - inspectionReadySinceRef.current;
-        if (heldMs < 120) {
-          inspectionReadyHeldRef.current = false;
-          setInspectionReadyHeld(false);
-          return;
-        }
-        beginRunningAfterInspection(now);
-        return;
-      }
-
-      if (phase === 'armedToStart') {
-        beginRunningAfterInspection(now);
-      }
-    };
-
-    handlersRef.current = { onPressDown, onPressUp, cancelActiveTimer };
+    activateRef.current = onActivate;
 
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.code !== 'Space') return;
+      if (e.code !== 'Space' && e.key !== ' ') return;
       if (isEditableTarget(e.target)) return;
       e.preventDefault();
+      e.stopImmediatePropagation();
       if (e.repeat) return;
-
-      onKeyboardSpaceDown();
+      onActivate();
     };
 
-    window.addEventListener('keydown', onKeyDown, { passive: false });
+    window.addEventListener('keydown', onKeyDown, { capture: true, passive: false });
     return () => {
-      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keydown', onKeyDown, { capture: true });
     };
   }, [addSolve, advanceMultiSolve, resetMultiSolve, timerSetPhase]);
-
-  const surfaceRef = useCallback((node: HTMLDivElement | null) => {
-    surfaceCleanupRef.current?.();
-    surfaceCleanupRef.current = null;
-
-    if (!node) return;
-
-    const onTouchStart = (e: TouchEvent) => {
-      if (e.touches.length > 1) return;
-      e.preventDefault();
-
-      const phase = useAppStore.getState().timer.phase;
-
-      if (phase === 'running') {
-        touchActiveRef.current = true;
-        handlersRef.current.onPressDown();
-        return;
-      }
-
-      if (touchActiveRef.current) return;
-      touchActiveRef.current = true;
-      handlersRef.current.onPressDown();
-    };
-
-    const onTouchEnd = (e: TouchEvent) => {
-      e.preventDefault();
-
-      if (!touchActiveRef.current) return;
-      touchActiveRef.current = false;
-      handlersRef.current.onPressUp();
-    };
-
-    const onTouchCancel = () => {
-      if (!touchActiveRef.current) return;
-      touchActiveRef.current = false;
-      inputHeldRef.current = false;
-      if (inspectionReadyHeldRef.current) {
-        inspectionReadyHeldRef.current = false;
-        setInspectionReadyHeld(false);
-      }
-    };
-
-    const opts: AddEventListenerOptions = { passive: false };
-    node.addEventListener('touchstart', onTouchStart, opts);
-    node.addEventListener('touchend', onTouchEnd, opts);
-    node.addEventListener('touchcancel', onTouchCancel, opts);
-
-    surfaceCleanupRef.current = () => {
-      node.removeEventListener('touchstart', onTouchStart);
-      node.removeEventListener('touchend', onTouchEnd);
-      node.removeEventListener('touchcancel', onTouchCancel);
-    };
-  }, []);
 
   const derived = useMemo(() => {
     const st = useAppStore.getState();
@@ -390,7 +233,7 @@ export function useTimerInput() {
 
     const inspectionElapsed = inspStart == null ? 0 : Math.max(0, now - inspStart);
     const inspectionRemainingMs = limits.limitMs - inspectionElapsed;
-    const inspectionPenalty: SolvePenalty = inspectionPenaltyFromElapsed(
+    const inspectionPenalty = inspectionPenaltyFromElapsed(
       inspectionElapsed,
       limits,
     );
@@ -405,36 +248,25 @@ export function useTimerInput() {
     };
   }, [timer.inspectionStartedAt, timer.nowMs, timer.runningStartedAt]);
 
-  const onPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    if (e.pointerType === 'touch') return;
-    if (e.button !== 0) return;
+  const onTimerTouchStart = useCallback((e: React.TouchEvent) => {
     e.preventDefault();
-    handlersRef.current.onPressDown();
+    skipNextClickRef.current = true;
+    activateRef.current();
   }, []);
 
-  const onPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    if (e.pointerType === 'touch') return;
+  const onTimerClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
-    handlersRef.current.onPressUp();
-  }, []);
-
-  const onPointerCancel = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    if (e.pointerType === 'touch') return;
-    const phase = useAppStore.getState().timer.phase;
-    if (phase === 'inspecting' && inspectionReadyHeldRef.current) {
-      inspectionReadyHeldRef.current = false;
-      setInspectionReadyHeld(false);
+    if (skipNextClickRef.current) {
+      skipNextClickRef.current = false;
+      return;
     }
-    inputHeldRef.current = false;
+    activateRef.current();
   }, []);
 
   return {
     ...derived,
-    inspectionReadyHeld,
-    surfaceRef,
-    onPointerDown,
-    onPointerUp,
-    onPointerCancel,
+    onTimerClick,
+    onTimerTouchStart,
   };
 }
 

@@ -112,6 +112,16 @@ export function SettingsModal({
           </select>
         </div>
 
+        <NumberRow
+          label="Other discipline XP multiplier"
+          hint="Used when discipline is set to “Other”"
+          value={settings.otherDisciplineMultiplier}
+          min={0.1}
+          max={10}
+          step={0.1}
+          onChange={(v) => setSettings({ otherDisciplineMultiplier: v })}
+        />
+
         <div className="border-t border-stroke/80 pt-5">
           <div className="text-sm font-medium text-fg">Reset everything</div>
           <p className="mt-1 text-xs text-fg-subtle">

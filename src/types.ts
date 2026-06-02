@@ -47,6 +47,54 @@ export type Discipline =
 
 export type SolvePenalty = 'OK' | '+2' | 'DNF';
 
+export type AchievementId =
+  | 'firstBlindSolve'
+  | 'firstOneHandedSolve'
+  | 'firstMultiSolve'
+  | 'multiSolved5Cubes'
+  | 'multiSolved10Cubes'
+  | 'blindMaster100';
+
+export type AchievementState = {
+  unlocked: boolean;
+  unlockedAt: number | null; // epoch ms
+};
+
+export type XpBreakdown = {
+  baseXp: number;
+  disciplineBonusXp: number;
+  pbBonusXp: number;
+  streakBonusXp: number;
+  multiBonusXp: number;
+  totalXp: number;
+};
+
+export type XpTransactionKind = 'solve' | 'multiRoundBonus';
+
+export type XpTransaction = {
+  id: string;
+  at: number; // epoch ms
+  kind: XpTransactionKind;
+  discipline: Discipline;
+  event: CubeEvent | null;
+  solveId?: string;
+  roundId?: string;
+  breakdown: XpBreakdown;
+};
+
+export type XpProfile = {
+  version: 1;
+  totalXp: number;
+  totalXpByDiscipline: Record<Discipline, number>;
+  solveCountByDiscipline: Record<Discipline, number>;
+  currentStreakByDiscipline: Record<Discipline, number>;
+  multiRoundsCompleted: number;
+  bestMultiCubesSolved: number;
+  achievements: Record<AchievementId, AchievementState>;
+  transactions: XpTransaction[];
+  lastEarned: XpTransaction | null;
+};
+
 export type Solve = {
   id: string;
   startedAt: number; // epoch ms
@@ -55,6 +103,10 @@ export type Solve = {
   penalty: SolvePenalty;
   scramble: string;
   event: CubeEvent;
+  discipline: Discipline;
+  xp: XpBreakdown | null;
+  /** Non-null only for multi-cube solves. */
+  roundId?: string;
 };
 
 export type Session = {
@@ -79,6 +131,8 @@ export type Settings = {
   soundEnabled: boolean;
   timerFontScale: number; // 0.8..1.4
   accent: ThemeAccent;
+  /** Configurable multiplier for the "Other" discipline XP. */
+  otherDisciplineMultiplier: number;
 };
 
 export type MultiSolvePlan = {
