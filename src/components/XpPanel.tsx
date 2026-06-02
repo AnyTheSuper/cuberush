@@ -28,7 +28,12 @@ export function XpPanel() {
   return (
     <Card
       title="XP"
-      right={<span className="text-xs text-fg-muted">{xp.totalXp} total</span>}
+      right={
+        <span className="rounded-lg border border-purple/30 bg-purple/10 px-2 py-1 text-xs text-fg-muted">
+          <span className="font-semibold text-purple-light">{xp.totalXp}</span>{' '}
+          total
+        </span>
+      }
     >
       <div className="space-y-2">
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
