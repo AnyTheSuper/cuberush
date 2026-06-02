@@ -10,6 +10,7 @@ import { StatsPanel } from './components/StatsPanel';
 import { TimerDisplay } from './components/TimerDisplay';
 import { TopBar } from './components/TopBar';
 import { XpPanel } from './components/XpPanel';
+import { AchievementPopup } from './components/AchievementPopup';
 import { useIsSignedIn } from './store/useAuthStore';
 import { useAuthStore } from './store/useAuthStore';
 
@@ -35,6 +36,7 @@ export default function App() {
 
   return (
     <div className="min-h-full bg-bg">
+      <AchievementPopup />
       <Header onOpenSettings={() => setSettingsOpen(true)} />
 
       <div className="px-3 py-3 md:px-5 md:py-5">
