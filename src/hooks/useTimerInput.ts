@@ -76,17 +76,25 @@ export function useTimerInput() {
       if (e.code !== 'Escape' && e.key !== 'Escape') return;
       if (document.querySelector('[data-modal-overlay]')) return;
 
-      const phase = useAppStore.getState().timer.phase;
+      const st = useAppStore.getState();
+      const phase = st.timer.phase;
       if (phase === 'idle') return;
 
       e.preventDefault();
       e.stopPropagation();
+
+      const session = st.sessions.find((x) => x.id === st.currentSessionId);
+      const multiMode = isLiveMultiMode(session, st.multiSolve);
+      if (multiMode) {
+        // Esc cancels the whole multi attempt, not just the current cube.
+        resetMultiSolve();
+      }
       cancelActiveTimer();
     };
 
     window.addEventListener('keydown', onEscape, { capture: true });
     return () => window.removeEventListener('keydown', onEscape, { capture: true });
-  }, [timerSetPhase]);
+  }, [resetMultiSolve, timerSetPhase]);
 
   useEffect(() => {
     const prepareRound = () => {

@@ -577,6 +577,7 @@ export const useAppStore = create<AppState>((set, get) => {
 
     resetMultiSolve: () => {
       const active = multiSolveEventAt(get().multiSolve.events, 0);
+      activeMultiRoundId = null;
       set((st) => {
         const multiSolve = { ...st.multiSolve, index: 0 };
         const synced = syncSessionToEvent(st, st.currentSessionId, active, true);
