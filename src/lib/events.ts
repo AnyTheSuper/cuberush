@@ -12,6 +12,7 @@ export const EVENT_LABEL: Record<CubeEvent, string> = {
   '1010': '10×10',
   '1111': '11×11',
   '1212': '12×12',
+  // 13×13–19×19 are intentionally hidden from the UI.
   '1313': '13×13',
   '1414': '14×14',
   '1515': '15×15',
@@ -61,12 +62,7 @@ export const PUZZLE_CATEGORIES: PuzzleCategory[] = [
       '1010',
       '1111',
       '1212',
-      '1313',
     ],
-  },
-  {
-    title: 'Big cubes',
-    events: ['1414', '1515', '1616', '1717', '1818', '1919'],
   },
   { title: 'Pyraminx', events: ['pyra'] },
   { title: 'Megaminx', events: ['kilo', 'mega'] },
