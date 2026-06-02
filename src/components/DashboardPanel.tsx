@@ -2,7 +2,6 @@ import { useMemo } from 'react';
 import { useAppStore } from '../store/useAppStore';
 import { TimesList } from './TimesList';
 import { StatsPanel } from './StatsPanel';
-import { XpPanel } from './XpPanel';
 import { GraphPanel } from './GraphPanel';
 import { Card } from './ui/Card';
 
@@ -24,8 +23,6 @@ export function DashboardPanel() {
           </div>
         </div>
       </Card>
-
-      <XpPanel />
 
       {hasGraph && <GraphPanel />}
     </div>

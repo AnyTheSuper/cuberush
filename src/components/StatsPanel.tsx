@@ -3,7 +3,6 @@ import { getSessionRoundConfig } from '../lib/events';
 import { roundSessionStats } from '../lib/rounds';
 import { formatMs } from '../lib/time';
 import { useAppStore } from '../store/useAppStore';
-import { Card } from './ui/Card';
 
 const STAT_COLORS: Record<string, string> = {
   Best: 'text-stat-green',
@@ -31,43 +30,33 @@ export function StatsPanel() {
   const countLabel = multiMode ? 'Rounds' : 'Count';
 
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-      <StatCard
-        label="Best"
-        value={stats.best == null ? '—' : formatMs(stats.best)}
-      />
-      <StatCard
+    <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+      <StatPill label="Best" value={stats.best == null ? '—' : formatMs(stats.best)} />
+      <StatPill
         label="Average"
         value={stats.avg == null ? '—' : formatMs(stats.avg)}
       />
-      <StatCard
-        label="Ao5"
-        value={stats.ao5 == null ? '—' : formatMs(stats.ao5)}
-      />
-      <StatCard
+      <StatPill label="Ao5" value={stats.ao5 == null ? '—' : formatMs(stats.ao5)} />
+      <StatPill
         label="Ao12"
         value={stats.ao12 == null ? '—' : formatMs(stats.ao12)}
       />
-      <StatCard label={countLabel} value={String(stats.roundCount)} />
+      <StatPill label={countLabel} value={String(stats.roundCount)} />
     </div>
   );
 }
 
-function StatCard({ label, value }: { label: string; value: string }) {
+function StatPill({ label, value }: { label: string; value: string }) {
   const valueColor = STAT_COLORS[label] ?? 'text-fg';
 
   return (
-    <Card className="min-w-0 overflow-hidden border-purple/25 px-0 py-0">
-      <div className="px-3 py-2.5">
-        <div className="truncate text-[10px] font-semibold tracking-[0.2em] text-fg-subtle">
-          {label.toUpperCase()}
-        </div>
-        <div
-          className={`mt-1 truncate text-xl font-semibold tabular-nums sm:text-2xl ${valueColor}`}
-        >
-          {value}
-        </div>
+    <div className="min-w-[132px] flex-1 rounded-xl border border-purple/25 bg-bg-panel px-3 py-2 shadow-panel">
+      <div className="truncate text-[10px] font-semibold tracking-[0.22em] text-fg-subtle">
+        {label.toUpperCase()}
       </div>
-    </Card>
+      <div className={`mt-1 truncate text-xl font-semibold tabular-nums ${valueColor}`}>
+        {value}
+      </div>
+    </div>
   );
 }

@@ -97,7 +97,7 @@ export function TimerDisplay() {
 
   return (
     <div
-      className="grid h-full min-h-[min(50vh,420px)] cursor-pointer place-items-center px-4 py-10 touch-manipulation select-none [-webkit-tap-highlight-color:transparent] [-webkit-touch-callout:none]"
+      className="grid h-[min(52vh,520px)] min-h-[340px] cursor-pointer place-items-center px-4 py-8 touch-manipulation select-none [-webkit-tap-highlight-color:transparent] [-webkit-touch-callout:none]"
       onClick={onTimerClick}
       onTouchStart={onTimerTouchStart}
       role="button"

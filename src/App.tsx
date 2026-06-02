@@ -38,14 +38,14 @@ export default function App() {
 
       <div className="px-3 py-3 md:px-5 md:py-5">
         <div className="mx-auto grid max-w-[1400px] grid-cols-1 gap-4 md:grid-cols-[260px_1fr_380px]">
-          <aside className="md:sticky md:top-[6.25rem] md:h-[calc(100vh-7.25rem)]">
+          <aside className="md:sticky md:top-[6.25rem] md:h-[calc(100vh-7.25rem)] md:overflow-y-auto">
             <SetupCard />
           </aside>
 
           <main className="flex flex-col">
             <TopBar />
 
-            <div className="flex-1 overflow-hidden rounded-xl2 border border-purple/30 shadow-purple">
+            <div className="overflow-hidden rounded-xl2 border border-purple/30 shadow-purple">
               <div className="h-full bg-timer-gradient">
                 <TimerDisplay />
               </div>
