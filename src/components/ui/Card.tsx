@@ -5,12 +5,14 @@ export function Card({
   right,
   children,
   className = '',
+  bodyClassName = '',
   scrollable = false,
 }: {
   title?: ReactNode;
   right?: ReactNode;
   children: ReactNode;
   className?: string;
+  bodyClassName?: string;
   /** When true, body scrolls inside a max-height parent (e.g. modals). */
   scrollable?: boolean;
 }) {
@@ -33,7 +35,8 @@ export function Card({
           'px-4 py-3 ' +
           (scrollable
             ? 'min-h-0 flex-1 overflow-y-auto overscroll-contain pb-4'
-            : '')
+            : '') +
+          (bodyClassName ? ` ${bodyClassName}` : '')
         }
       >
         {children}
