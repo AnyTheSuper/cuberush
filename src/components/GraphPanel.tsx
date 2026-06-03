@@ -28,7 +28,7 @@ export function GraphPanel() {
   );
 
   return (
-    <Card title="Progression" className="h-full">
+    <Card title="Progression" className="relative isolate z-10 h-full">
       <div className="h-64">
         {data.length === 0 ? (
           <div className="flex h-full items-center justify-center text-sm text-fg-muted">

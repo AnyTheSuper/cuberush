@@ -31,8 +31,8 @@ export function Modal({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="w-full max-w-lg">
-        <Card title={title} className="overflow-hidden">
+      <div className="flex w-full max-w-lg max-h-[calc(100dvh-2rem)] min-h-0 flex-col">
+        <Card title={title} scrollable className="max-h-full min-h-0 overflow-hidden">
           {children}
         </Card>
       </div>

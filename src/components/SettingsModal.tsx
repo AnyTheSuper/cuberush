@@ -169,7 +169,7 @@ export function SettingsModal({
           )}
         </div>
 
-        <div className="flex justify-end gap-2 pt-2">
+        <div className="flex justify-end gap-2 border-t border-stroke/80 pt-4">
           <Button
             variant="ghost"
             onClick={() => {

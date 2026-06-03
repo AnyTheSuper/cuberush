@@ -61,7 +61,7 @@ export function TimesList() {
     <>
       <Card
         title="Times"
-        className="mb-4 flex max-h-[min(50vh,420px)] flex-col"
+        className="mb-4 flex max-h-[min(50vh,420px)] flex-col overflow-hidden"
         right={
           <span className="text-xs text-fg-muted">
             {solves.length} solve{solves.length === 1 ? '' : 's'}
@@ -98,7 +98,7 @@ export function TimesList() {
               )}
             </div>
 
-            <ul className="-mx-1 flex-1 space-y-1 overflow-y-auto px-1 pr-1">
+            <ul className="-mx-1 flex-1 space-y-1 overflow-x-hidden overflow-y-auto px-1 pr-1">
               {multiMode
                 ? rounds.map((round, roundIdx) => {
                     const roundNum = rounds.length - roundIdx;
@@ -137,7 +137,7 @@ export function TimesList() {
                         key={solve.id}
                         n={`R${roundNum}.${i + 1}`}
                         solve={solve}
-                        isBest={bestKey === solve.id}
+                        isBest={false}
                         onDelete={() => deleteSolve(solve.id)}
                       />
                     ));
@@ -166,8 +166,9 @@ export function TimesList() {
   );
 }
 
-const bestLabelClass =
-  'font-bold text-stat-yellow drop-shadow-[0_0_10px_rgba(250,204,21,0.9)]';
+const bestRowClass =
+  'border-stat-yellow/45 bg-stat-yellow/10 ring-1 ring-stat-yellow/35';
+const bestLabelClass = 'font-bold text-stat-yellow';
 
 function RoundRow({
   label,
@@ -187,7 +188,14 @@ function RoundRow({
   onDelete: () => void;
 }) {
   return (
-    <li className="flex flex-col gap-2 rounded-lg border border-purple/15 bg-bg-panel2 px-3 py-2.5 text-sm transition hover:bg-bg-inset sm:flex-row sm:items-center">
+    <li
+      className={
+        'flex flex-col gap-2 rounded-lg border px-3 py-2.5 text-sm transition sm:flex-row sm:items-center ' +
+        (isBest
+          ? bestRowClass
+          : 'border-purple/15 bg-bg-panel2 hover:bg-bg-inset')
+      }
+    >
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <span
           className={
@@ -198,7 +206,11 @@ function RoundRow({
           {label}
         </span>
         <span
-          className={`shrink-0 font-mono text-lg font-semibold tabular-nums ${timeClass}`}
+          className={
+            'shrink-0 font-mono text-lg font-semibold tabular-nums ' +
+            (isBest ? 'text-stat-yellow ' : '') +
+            timeClass
+          }
         >
           {timeLabel}
         </span>
@@ -228,7 +240,14 @@ function SingleSolveRow({
         : 'text-fg';
 
   return (
-    <li className="flex items-center gap-3 rounded-lg border border-transparent bg-white/[0.03] px-3 py-2 text-sm transition hover:bg-white/[0.06]">
+    <li
+      className={
+        'flex items-center gap-3 rounded-lg border px-3 py-2 text-sm transition ' +
+        (isBest
+          ? bestRowClass
+          : 'border-transparent bg-white/[0.03] hover:bg-white/[0.06]')
+      }
+    >
       <span
         className={
           'w-10 shrink-0 text-xs font-semibold ' +
@@ -238,7 +257,11 @@ function SingleSolveRow({
         #{n}
       </span>
       <span
-        className={`min-w-[5rem] font-mono text-base font-semibold tabular-nums ${timeClass}`}
+        className={
+          'min-w-[5rem] font-mono text-base font-semibold tabular-nums ' +
+          (isBest ? 'text-stat-yellow ' : '') +
+          timeClass
+        }
       >
         {formatSolveTime(solve)}
       </span>
