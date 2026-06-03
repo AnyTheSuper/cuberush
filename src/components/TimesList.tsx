@@ -62,7 +62,7 @@ export function TimesList() {
       <Card
         title="Times"
         bodyClassName="flex min-h-0 flex-1 flex-col"
-        className="flex min-h-0 flex-1 flex-col overflow-hidden"
+        className="flex max-h-[min(50vh,420px)] flex-col overflow-hidden"
         right={
           <span className="text-xs text-fg-muted">
             {solves.length} solve{solves.length === 1 ? '' : 's'}
@@ -75,7 +75,7 @@ export function TimesList() {
           </p>
         ) : (
           <>
-            <div className="mb-3 flex flex-wrap gap-2 text-xs">
+            <div className="mb-3 shrink-0 flex flex-wrap gap-2 text-xs">
               <span className="rounded-lg border border-purple/30 bg-purple/10 px-2 py-1 text-fg-muted">
                 {multiMode ? 'Round avg' : 'Session avg'}:{' '}
                 <span className="font-semibold text-purple-light">
@@ -99,7 +99,7 @@ export function TimesList() {
               )}
             </div>
 
-            <ul className="-mx-1 min-h-0 flex-1 space-y-1 overflow-x-hidden overflow-y-auto overscroll-contain px-1 pr-1">
+            <ul className="-mx-1 min-h-0 flex-1 space-y-1 overflow-x-hidden overflow-y-auto overscroll-contain px-1 pr-1 [scrollbar-gutter:stable]">
               {multiMode
                 ? rounds.map((round, roundIdx) => {
                     const roundNum = rounds.length - roundIdx;

@@ -52,7 +52,7 @@ export default function App() {
             </div>
           </main>
 
-          <aside className="flex min-h-0 flex-col gap-4 md:sticky md:top-[6.25rem] md:h-[calc(100vh-7.25rem)] md:overflow-hidden">
+          <aside className="flex flex-col gap-4 md:sticky md:top-[6.25rem] md:max-h-[calc(100vh-7.25rem)] md:overflow-y-auto">
             <DashboardPanel />
           </aside>
         </div>
