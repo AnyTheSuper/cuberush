@@ -5,6 +5,7 @@ import {
   validatePassword,
   validateUsername,
 } from '../lib/auth';
+import { isGuestMode, setGuestMode } from '../lib/storage';
 import { getSupabase, isSupabaseConfigured } from '../lib/supabaseClient';
 
 export type AccountRecord = {
@@ -15,12 +16,15 @@ export type AccountRecord = {
 
 type AuthState = {
   authReady: boolean;
+  isGuest: boolean;
   userId: string | null;
   email: string | null;
   displayName: string | null;
   photoUrl: string | null;
 
   initAuth: () => () => void;
+  continueAsGuest: () => void;
+  exitGuest: () => void;
   signUp: (
     email: string,
     password: string,
@@ -101,10 +105,12 @@ function applySession(
       email: null,
       displayName: null,
       photoUrl: null,
+      isGuest: isGuestMode(),
     });
     return;
   }
 
+  setGuestMode(false);
   const email = session.user.email ?? null;
   set({
     userId: session.user.id,
@@ -113,20 +119,47 @@ function applySession(
       profile?.username?.trim() ||
       (email ? email.split('@')[0] : 'Player'),
     photoUrl: profile?.photo_url ?? null,
+    isGuest: false,
   });
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   authReady: !isSupabaseConfigured,
+  isGuest: isGuestMode(),
   userId: null,
   email: null,
   displayName: null,
   photoUrl: null,
 
+  continueAsGuest: () => {
+    setGuestMode(true);
+    const supabase = getSupabase();
+    if (supabase) void supabase.auth.signOut();
+    set({
+      isGuest: true,
+      userId: null,
+      email: null,
+      displayName: null,
+      photoUrl: null,
+      authReady: true,
+    });
+  },
+
+  exitGuest: () => {
+    setGuestMode(false);
+    set({
+      isGuest: false,
+      userId: null,
+      email: null,
+      displayName: null,
+      photoUrl: null,
+    });
+  },
+
   initAuth: () => {
     const supabase = getSupabase();
     if (!supabase) {
-      set({ authReady: true });
+      set({ authReady: true, isGuest: isGuestMode() });
       return () => {};
     }
 
@@ -268,9 +301,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   signOut: async () => {
+    setGuestMode(false);
     const supabase = getSupabase();
     if (supabase) await supabase.auth.signOut();
-    applySession(set, null);
+    set({
+      isGuest: false,
+      userId: null,
+      email: null,
+      displayName: null,
+      photoUrl: null,
+    });
   },
 
   updatePhoto: async (file) => {
@@ -316,12 +356,27 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   resetAllData: () => {
-    applySession(set, null);
+    setGuestMode(false);
     const supabase = getSupabase();
     if (supabase) void supabase.auth.signOut();
+    set({
+      isGuest: false,
+      userId: null,
+      email: null,
+      displayName: null,
+      photoUrl: null,
+    });
   },
 }));
 
 export function useIsSignedIn() {
   return useAuthStore((s) => s.authReady && s.userId != null);
+}
+
+export function useCanAccessApp() {
+  return useAuthStore((s) => s.authReady && (s.userId != null || s.isGuest));
+}
+
+export function useIsGuest() {
+  return useAuthStore((s) => s.authReady && s.isGuest);
 }

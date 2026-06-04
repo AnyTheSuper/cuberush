@@ -24,7 +24,11 @@ import {
 } from '../lib/scramble';
 import { scheduleCloudPersist } from '../lib/cloudPersist';
 import { canUseCloudSync, deleteUserState, loadUserState } from '../lib/userStateApi';
-import { appStorageKey, clearAllAppStorageBuckets } from '../lib/storage';
+import {
+  appStorageKey,
+  clearAllAppStorageBuckets,
+  isGuestMode,
+} from '../lib/storage';
 import { useAuthStore } from './useAuthStore';
 import { bestMs, roundTotalMs, solveToMs } from '../lib/stats';
 import { groupIntoRounds } from '../lib/rounds';
@@ -375,7 +379,7 @@ function normalizePersisted(base: Persisted): Persisted {
 }
 
 function initialPersisted(): Persisted {
-  if (canUseCloudSync()) return freshPersisted();
+  if (canUseCloudSync() && !isGuestMode()) return freshPersisted();
   const base = loadPersistedLocal();
   if (!base) return freshPersisted();
   return normalizePersisted(base);
@@ -934,7 +938,8 @@ export const useAppStore = create<AppState>((set, get) => {
     },
 
     rehydrateFromStorage: () => {
-      const userId = useAuthStore.getState().userId;
+      const { userId } = useAuthStore.getState();
+      const guest = isGuestMode();
 
       const applyFresh = (fresh: Persisted) => {
         set({
@@ -945,18 +950,13 @@ export const useAppStore = create<AppState>((set, get) => {
         queueMicrotask(() => get().hydrateOfficialScrambles());
       };
 
-      if (userId && canUseCloudSync()) {
+      if (userId && canUseCloudSync() && !guest) {
         void loadUserState(userId).then((base) => {
           const fresh = base
             ? normalizePersisted(base as Persisted)
             : freshPersisted();
           applyFresh(fresh);
         });
-        return;
-      }
-
-      if (canUseCloudSync()) {
-        applyFresh(freshPersisted());
         return;
       }
 

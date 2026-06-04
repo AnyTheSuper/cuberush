@@ -8,7 +8,8 @@ import { TopBar } from './components/TopBar';
 import { AchievementPopup } from './components/AchievementPopup';
 import { SetupCard } from './components/SetupCard';
 import { DashboardPanel } from './components/DashboardPanel';
-import { useAuthStore, useIsSignedIn } from './store/useAuthStore';
+import { GuestBanner } from './components/GuestBanner';
+import { useAuthStore, useCanAccessApp, useIsGuest } from './store/useAuthStore';
 
 function AuthLoading() {
   return (
@@ -20,9 +21,11 @@ function AuthLoading() {
 
 export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const signedIn = useIsSignedIn();
+  const canAccess = useCanAccessApp();
+  const isGuest = useIsGuest();
   const authReady = useAuthStore((s) => s.authReady);
   const userId = useAuthStore((s) => s.userId);
+  const isGuestFlag = useAuthStore((s) => s.isGuest);
   const initAuth = useAuthStore((s) => s.initAuth);
   const hydrateOfficialScrambles = useAppStore((s) => s.hydrateOfficialScrambles);
 
@@ -31,24 +34,25 @@ export default function App() {
   useEffect(() => {
     if (!authReady) return;
     useAppStore.getState().rehydrateFromStorage();
-  }, [authReady, userId]);
+  }, [authReady, userId, isGuestFlag]);
 
   useEffect(() => {
-    if (!signedIn) return;
+    if (!canAccess) return;
     hydrateOfficialScrambles();
-  }, [hydrateOfficialScrambles, signedIn]);
+  }, [canAccess, hydrateOfficialScrambles]);
 
   if (!authReady) {
     return <AuthLoading />;
   }
 
-  if (!signedIn) {
+  if (!canAccess) {
     return <AuthGate />;
   }
 
   return (
     <div className="min-h-full bg-bg">
       <AchievementPopup />
+      {isGuest && <GuestBanner />}
       <Header onOpenSettings={() => setSettingsOpen(true)} />
 
       <div className="px-3 py-3 md:px-5 md:py-5">

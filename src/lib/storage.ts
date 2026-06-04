@@ -1,5 +1,23 @@
 const AUTH_LS_KEY = 'cube-timer:auth:v1';
 const APP_LS_PREFIX = 'cube-timer:v1';
+const GUEST_MODE_KEY = 'cube-timer:guest-mode:v1';
+
+export function isGuestMode(): boolean {
+  try {
+    return localStorage.getItem(GUEST_MODE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function setGuestMode(enabled: boolean) {
+  try {
+    if (enabled) localStorage.setItem(GUEST_MODE_KEY, '1');
+    else localStorage.removeItem(GUEST_MODE_KEY);
+  } catch {
+    // ignore
+  }
+}
 
 function normalizeKey(username: string) {
   return username.trim().toLowerCase();
@@ -17,8 +35,9 @@ export function currentUsernameFromStorage(): string | null {
   }
 }
 
-/** Storage key for app data scoped to current account (or anon). */
+/** Storage key for app data scoped to guest, cloud account, or legacy anon. */
 export function appStorageKey(): string {
+  if (isGuestMode()) return `${APP_LS_PREFIX}:guest`;
   const u = currentUsernameFromStorage();
   return u ? `${APP_LS_PREFIX}:${u}` : `${APP_LS_PREFIX}:anon`;
 }
