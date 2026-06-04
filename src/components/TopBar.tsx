@@ -8,8 +8,10 @@ import {
 } from '../lib/events';
 import { getInspectionLimits } from '../lib/inspection';
 import { useAppStore } from '../store/useAppStore';
+import { useRaceStore } from '../store/useRaceStore';
 import { Button } from './ui/Button';
 import { CustomizeModal } from './CustomizeModal';
+import { RaceButton } from './race/RaceOverlay';
 
 export function TopBar() {
   const session = useAppStore((s) =>
@@ -22,7 +24,11 @@ export function TopBar() {
 
   const event = session?.event ?? '333';
   const discipline = session?.discipline ?? 'standard';
-  const scramble = scrambleByEvent[event] ?? '';
+  const racePhase = useRaceStore((s) => s.phase);
+  const raceMatch = useRaceStore((s) => s.match);
+  const inRace = racePhase !== 'idle';
+  const scramble =
+    inRace && raceMatch ? raceMatch.scramble : (scrambleByEvent[event] ?? '');
   const multiMode =
     discipline === 'multi' || multiSolve.events.length > 1;
   const complete = isMultiComplete(multiSolve);
@@ -82,10 +88,11 @@ export function TopBar() {
           </div>
 
           <div className="ml-auto flex flex-wrap items-center gap-2">
-            <Button variant="ghost" onClick={() => setCustomizeOpen(true)}>
+            <RaceButton />
+            <Button variant="ghost" disabled={inRace} onClick={() => setCustomizeOpen(true)}>
               Customize
             </Button>
-            <Button variant="purple" onClick={nextScramble}>
+            <Button variant="purple" disabled={inRace} onClick={nextScramble}>
               Next scramble
             </Button>
           </div>
