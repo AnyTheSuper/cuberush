@@ -10,7 +10,6 @@ import { roundTotalMs } from '../lib/stats';
 import { formatMs } from '../lib/time';
 import { useTimerInput } from '../hooks/useTimerInput';
 import { useAppStore } from '../store/useAppStore';
-import { useRaceStore } from '../store/useRaceStore';
 
 export function TimerDisplay() {
   const timer = useAppStore((s) => s.timer);
@@ -23,8 +22,6 @@ export function TimerDisplay() {
   const session = useAppStore((s) =>
     s.sessions.find((x) => x.id === s.currentSessionId),
   );
-  const racePhase = useRaceStore((s) => s.phase);
-  const inRace = racePhase === 'racing' || racePhase === 'countdown';
 
   const {
     inspectionRemainingMs,
@@ -88,13 +85,7 @@ export function TimerDisplay() {
             ? 'text-warn'
             : 'text-white/90';
 
-  const hintText = inRace
-    ? racePhase === 'countdown'
-      ? 'Get ready…'
-      : timer.phase === 'running'
-        ? 'Press Space or tap to finish the race'
-        : 'Press Space or tap to start the race'
-    : multiDone
+  const hintText = multiDone
     ? 'Press Space or tap to start the next round'
     : timer.phase === 'running'
       ? multiMode

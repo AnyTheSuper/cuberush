@@ -8,7 +8,6 @@ export type CloudPersisted = {
   multiSolve: unknown;
   scrambleByEvent: Record<string, string>;
   xp: unknown;
-  raceCareer?: unknown;
 };
 
 export async function loadUserState(

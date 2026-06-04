@@ -10,7 +10,6 @@ import {
   inspectionPenaltyFromElapsed,
 } from '../lib/inspection';
 import { useAppStore } from '../store/useAppStore';
-import { useRaceStore } from '../store/useRaceStore';
 import type { TimerPhase } from '../types';
 
 function isEditableTarget(target: EventTarget | null) {
@@ -142,23 +141,6 @@ export function useTimerInput() {
       const startedEpoch = solveStartedEpochRef.current;
       if (startedPerf == null || startedEpoch == null) return;
 
-      const racePhase = useRaceStore.getState().phase;
-      if (racePhase === 'racing') {
-        useRaceStore.getState().submitPlayerSolve(
-          Math.max(0, now - startedPerf),
-          pendingPenaltyRef.current,
-        );
-        pendingPenaltyRef.current = 'OK';
-        solveStartedEpochRef.current = null;
-        solveStartedPerfRef.current = null;
-        timerSetPhase('idle', {
-          armedAt: null,
-          inspectionStartedAt: null,
-          runningStartedAt: null,
-        });
-        return;
-      }
-
       const session = st.sessions.find((x) => x.id === st.currentSessionId);
       const multiMode = isLiveMultiMode(session, st.multiSolve);
       const roundStartedAt = st.timer.runningStartedAt;
@@ -202,14 +184,6 @@ export function useTimerInput() {
       const now = performance.now();
       if (now - lastActivateAtRef.current < 280) return;
       lastActivateAtRef.current = now;
-
-      const racePhase = useRaceStore.getState().phase;
-      if (racePhase === 'searching' || racePhase === 'ready' || racePhase === 'results') {
-        return;
-      }
-      if (racePhase === 'countdown') {
-        return;
-      }
 
       prepareRound();
 

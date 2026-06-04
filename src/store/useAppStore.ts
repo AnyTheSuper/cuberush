@@ -30,10 +30,6 @@ import { bestMs, roundTotalMs, solveToMs } from '../lib/stats';
 import { groupIntoRounds } from '../lib/rounds';
 import { xpForMultiCubeSolve, xpForMultiRoundBonus, xpForSingleSolve } from '../lib/xp/engine';
 import { createEmptyXpProfile, pushTransaction, unlockAchievement } from '../lib/xp/profile';
-import {
-  defaultRaceCareer,
-  type RaceCareerProfile,
-} from '../lib/race/types';
 
 function uid() {
   return Math.random().toString(16).slice(2) + Date.now().toString(16);
@@ -184,7 +180,6 @@ type Persisted = {
   multiSolve: MultiSolvePlan;
   scrambleByEvent: Record<CubeEvent, string>;
   xp: XpProfile;
-  raceCareer: RaceCareerProfile;
 };
 
 function loadPersistedLocal(): Persisted | null {
@@ -255,7 +250,6 @@ type AppState = Persisted & {
 
   resetAllData: () => void;
   rehydrateFromStorage: () => void;
-  setRaceCareer: (career: RaceCareerProfile) => void;
 
   refreshOfficialScramble: (event: CubeEvent) => void;
   hydrateOfficialScrambles: () => void;
@@ -325,7 +319,6 @@ function freshPersisted(): Persisted {
         : { index: 0, events: [d.defaultEvent] },
     scrambleByEvent: buildDefaultScrambleMap(),
     xp: createEmptyXpProfile(),
-    raceCareer: defaultRaceCareer(),
   };
 }
 
@@ -354,10 +347,6 @@ function normalizePersisted(base: Persisted): Persisted {
       multiSolve,
       scrambleByEvent: buildDefaultScrambleMap(),
       xp,
-      raceCareer:
-        (base as Persisted).raceCareer?.version === 1
-          ? (base as Persisted).raceCareer
-          : defaultRaceCareer(),
     };
   }
 
@@ -379,8 +368,6 @@ function normalizePersisted(base: Persisted): Persisted {
       multiSolve,
       ...synced,
       xp: (base as any).xp?.version === 1 ? (base as any).xp : createEmptyXpProfile(),
-      raceCareer:
-        base.raceCareer?.version === 1 ? base.raceCareer : defaultRaceCareer(),
     };
   }
 
@@ -410,15 +397,8 @@ export const useAppStore = create<AppState>((set, get) => {
   };
 
   const persistNow = () => {
-    const {
-      sessions,
-      currentSessionId,
-      settings,
-      multiSolve,
-      scrambleByEvent,
-      xp,
-      raceCareer,
-    } = get();
+    const { sessions, currentSessionId, settings, multiSolve, scrambleByEvent, xp } =
+      get();
     savePersisted({
       dataVersion: 2,
       sessions,
@@ -427,7 +407,6 @@ export const useAppStore = create<AppState>((set, get) => {
       multiSolve,
       scrambleByEvent,
       xp,
-      raceCareer,
     });
   };
 
@@ -952,11 +931,6 @@ export const useAppStore = create<AppState>((set, get) => {
       });
       savePersisted(fresh);
       queueMicrotask(() => get().hydrateOfficialScrambles());
-    },
-
-    setRaceCareer: (career) => {
-      set({ raceCareer: career });
-      queueMicrotask(persistNow);
     },
 
     rehydrateFromStorage: () => {

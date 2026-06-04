@@ -8,7 +8,6 @@ import { TopBar } from './components/TopBar';
 import { AchievementPopup } from './components/AchievementPopup';
 import { SetupCard } from './components/SetupCard';
 import { DashboardPanel } from './components/DashboardPanel';
-import { RaceOverlay } from './components/race/RaceOverlay';
 import { useAuthStore, useIsSignedIn } from './store/useAuthStore';
 
 function AuthLoading() {
@@ -50,7 +49,6 @@ export default function App() {
   return (
     <div className="min-h-full bg-bg">
       <AchievementPopup />
-      <RaceOverlay />
       <Header onOpenSettings={() => setSettingsOpen(true)} />
 
       <div className="px-3 py-3 md:px-5 md:py-5">
