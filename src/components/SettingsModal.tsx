@@ -131,8 +131,8 @@ export function SettingsModal({
         <div className="border-t border-stroke/80 pt-5">
           <div className="text-sm font-medium text-fg">Reset everything</div>
           <p className="mt-1 text-xs text-fg-subtle">
-            Deletes all sessions, solve times, settings, and accounts on this
-            device. You will need to sign up or sign in again.
+            Deletes all sessions, solve times, and settings from your cloud
+            account. You will stay signed in unless you sign out.
           </p>
           {!confirmReset ? (
             <Button
@@ -146,7 +146,7 @@ export function SettingsModal({
           ) : (
             <div className="mt-3 rounded-lg border border-bad/40 bg-bad/10 p-3">
               <p className="text-sm text-fg">
-                This cannot be undone. All your data on this browser will be
+                This cannot be undone. All your synced timer data will be
                 erased.
               </p>
               <div className="mt-3 flex flex-wrap justify-end gap-2">

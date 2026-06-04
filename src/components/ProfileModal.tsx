@@ -11,12 +11,8 @@ export function ProfileModal({
   open: boolean;
   onClose: () => void;
 }) {
-  const currentUsername = useAuthStore((s) => s.currentUsername);
-  const accounts = useAuthStore((s) => s.accounts);
-  const account =
-    currentUsername != null
-      ? accounts[currentUsername.trim().toLowerCase()]
-      : null;
+  const getCurrentAccount = useAuthStore((s) => s.getCurrentAccount);
+  const account = getCurrentAccount();
   const updatePhoto = useAuthStore((s) => s.updatePhoto);
   const removePhoto = useAuthStore((s) => s.removePhoto);
   const updatePassword = useAuthStore((s) => s.updatePassword);
@@ -56,7 +52,7 @@ export function ProfileModal({
   };
 
   const handleSignOut = () => {
-    signOut();
+    void signOut();
     setPassword('');
     setMessage(null);
     setError(null);
@@ -84,7 +80,7 @@ export function ProfileModal({
             <div className="truncate text-lg font-semibold text-fg">
               {account.username}
             </div>
-            <div className="text-xs text-fg-subtle">CubeRush account</div>
+            <div className="truncate text-xs text-fg-subtle">{account.email}</div>
           </div>
         </div>
 

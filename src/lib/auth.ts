@@ -101,6 +101,15 @@ export async function verifyPassword(
   }
 }
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export function validateEmail(email: string): string | null {
+  const e = email.trim().toLowerCase();
+  if (!e) return 'Email is required.';
+  if (!EMAIL_RE.test(e)) return 'Enter a valid email address.';
+  return null;
+}
+
 const USERNAME_RE = /^[a-zA-Z0-9_-]{3,20}$/;
 
 export function validateUsername(username: string): string | null {

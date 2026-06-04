@@ -1,247 +1,287 @@
 import { create } from 'zustand';
 import {
-  authCryptoErrorMessage,
-  hashPassword,
-  isAuthCryptoAvailable,
   readPhotoFile,
+  validateEmail,
   validatePassword,
   validateUsername,
-  verifyPassword,
 } from '../lib/auth';
-
-const AUTH_LS_KEY = 'cube-timer:auth:v1';
+import { getSupabase, isSupabaseConfigured } from '../lib/supabaseClient';
 
 export type AccountRecord = {
   username: string;
-  passwordHash: string;
-  salt: string;
-  hashVersion?: number;
+  email: string;
   photoDataUrl: string | null;
-  createdAt: number;
 };
 
-type PersistedAuth = {
-  accounts: Record<string, AccountRecord>;
-  currentUsername: string | null;
-};
+type AuthState = {
+  authReady: boolean;
+  userId: string | null;
+  email: string | null;
+  displayName: string | null;
+  photoUrl: string | null;
 
-function loadAuth(): PersistedAuth {
-  try {
-    const raw = localStorage.getItem(AUTH_LS_KEY);
-    if (!raw) return { accounts: {}, currentUsername: null };
-    const parsed = JSON.parse(raw) as PersistedAuth;
-    return {
-      accounts: parsed.accounts ?? {},
-      currentUsername: parsed.currentUsername ?? null,
-    };
-  } catch {
-    return { accounts: {}, currentUsername: null };
-  }
-}
-
-function saveAuth(data: PersistedAuth): boolean {
-  try {
-    localStorage.setItem(AUTH_LS_KEY, JSON.stringify(data));
-    const readBack = localStorage.getItem(AUTH_LS_KEY);
-    return readBack != null && readBack.length > 0;
-  } catch {
-    return false;
-  }
-}
-
-function normalizeKey(username: string) {
-  return username.trim().toLowerCase();
-}
-
-function mergeAccounts(
-  a: Record<string, AccountRecord>,
-  b: Record<string, AccountRecord>,
-) {
-  return { ...a, ...b };
-}
-
-function getAccountsSnapshot(get: () => AuthState): Record<string, AccountRecord> {
-  const disk = loadAuth();
-  return mergeAccounts(disk.accounts, get().accounts);
-}
-
-const initial = loadAuth();
-
-type AuthState = PersistedAuth & {
+  initAuth: () => () => void;
   signUp: (
-    username: string,
+    email: string,
     password: string,
-  ) => Promise<{ ok: true } | { ok: false; error: string }>;
+    displayName?: string,
+  ) => Promise<
+    | { ok: true; needsEmailConfirmation?: boolean }
+    | { ok: false; error: string }
+  >;
   signIn: (
-    username: string,
+    email: string,
     password: string,
   ) => Promise<{ ok: true } | { ok: false; error: string }>;
-  signOut: () => void;
+  signOut: () => Promise<void>;
   updatePhoto: (file: File) => Promise<{ ok: true } | { ok: false; error: string }>;
   updatePassword: (
     newPassword: string,
   ) => Promise<{ ok: true } | { ok: false; error: string }>;
-  removePhoto: () => void;
+  removePhoto: () => Promise<void>;
   getCurrentAccount: () => AccountRecord | null;
   resetAllData: () => void;
-  refreshFromStorage: () => void;
 };
 
-function applyPersist(state: PersistedAuth): boolean {
-  const ok = saveAuth({
-    accounts: state.accounts,
-    currentUsername: state.currentUsername,
+function supabaseAuthError(message: string): string {
+  const m = message.toLowerCase();
+  if (m.includes('invalid login credentials')) {
+    return 'Incorrect email or password.';
+  }
+  if (m.includes('already registered') || m.includes('already exists')) {
+    return 'An account with this email already exists. Sign in instead.';
+  }
+  if (m.includes('email not confirmed')) {
+    return 'Confirm your email first, then sign in.';
+  }
+  return message;
+}
+
+async function loadProfile(userId: string) {
+  const supabase = getSupabase();
+  if (!supabase) return null;
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('username, photo_url')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (error) {
+    console.error('loadProfile:', error.message);
+    return null;
+  }
+  return data;
+}
+
+async function upsertProfile(
+  userId: string,
+  patch: { username?: string; photo_url?: string | null },
+) {
+  const supabase = getSupabase();
+  if (!supabase) return { ok: false as const, error: 'Cloud sync is not configured.' };
+
+  const { error } = await supabase.from('profiles').upsert({
+    user_id: userId,
+    ...patch,
   });
-  return ok;
+
+  if (error) return { ok: false as const, error: error.message };
+  return { ok: true as const };
+}
+
+function applySession(
+  set: (partial: Partial<AuthState>) => void,
+  session: { user: { id: string; email?: string | null } } | null,
+  profile?: { username: string | null; photo_url: string | null } | null,
+) {
+  if (!session?.user) {
+    set({
+      userId: null,
+      email: null,
+      displayName: null,
+      photoUrl: null,
+    });
+    return;
+  }
+
+  const email = session.user.email ?? null;
+  set({
+    userId: session.user.id,
+    email,
+    displayName:
+      profile?.username?.trim() ||
+      (email ? email.split('@')[0] : 'Player'),
+    photoUrl: profile?.photo_url ?? null,
+  });
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
-  accounts: initial.accounts,
-  currentUsername: initial.currentUsername,
+  authReady: !isSupabaseConfigured,
+  userId: null,
+  email: null,
+  displayName: null,
+  photoUrl: null,
 
-  refreshFromStorage: () => {
-    const disk = loadAuth();
-    set({
-      accounts: mergeAccounts(get().accounts, disk.accounts),
-      currentUsername: disk.currentUsername ?? get().currentUsername,
+  initAuth: () => {
+    const supabase = getSupabase();
+    if (!supabase) {
+      set({ authReady: true });
+      return () => {};
+    }
+
+    let cancelled = false;
+
+    const syncSession = async () => {
+      const { data, error } = await supabase.auth.getSession();
+      if (cancelled) return;
+      if (error) {
+        console.error('getSession:', error.message);
+        set({ authReady: true });
+        return;
+      }
+
+      const session = data.session;
+      if (!session?.user) {
+        applySession(set, null);
+        set({ authReady: true });
+        return;
+      }
+
+      const profile = await loadProfile(session.user.id);
+      if (cancelled) return;
+      applySession(set, session, profile);
+      set({ authReady: true });
+    };
+
+    void syncSession();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session?.user) {
+        applySession(set, null);
+        return;
+      }
+      void loadProfile(session.user.id).then((profile) => {
+        applySession(set, session, profile);
+      });
     });
+
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
   },
 
   getCurrentAccount: () => {
-    const { currentUsername } = get();
-    if (!currentUsername) return null;
-    const accounts = getAccountsSnapshot(get);
-    const key = normalizeKey(currentUsername);
-    return accounts[key] ?? null;
+    const { userId, email, displayName, photoUrl } = get();
+    if (!userId || !email) return null;
+    return {
+      username: displayName ?? email.split('@')[0] ?? 'Player',
+      email,
+      photoDataUrl: photoUrl,
+    };
   },
 
-  signUp: async (username, password) => {
-    if (!isAuthCryptoAvailable()) {
-      return { ok: false, error: authCryptoErrorMessage() };
+  signUp: async (email, password, displayName) => {
+    if (!isSupabaseConfigured) {
+      return {
+        ok: false,
+        error: 'Cloud accounts are not configured on this deployment.',
+      };
     }
 
-    const userErr = validateUsername(username);
-    if (userErr) return { ok: false, error: userErr };
+    const emailErr = validateEmail(email);
+    if (emailErr) return { ok: false, error: emailErr };
     const passErr = validatePassword(password);
     if (passErr) return { ok: false, error: passErr };
 
-    const trimmed = username.trim();
-    const key = normalizeKey(trimmed);
-    const accounts = getAccountsSnapshot(get);
-
-    if (accounts[key]) {
-      return { ok: false, error: 'That username is already taken.' };
+    const name = displayName?.trim();
+    if (name) {
+      const nameErr = validateUsername(name);
+      if (nameErr) return { ok: false, error: nameErr };
     }
 
-    try {
-      const { hash, salt, version } = await hashPassword(password);
-      const account: AccountRecord = {
-        username: trimmed,
-        passwordHash: hash,
-        salt,
-        hashVersion: version,
-        photoDataUrl: null,
-        createdAt: Date.now(),
-      };
+    const supabase = getSupabase();
+    if (!supabase) {
+      return { ok: false, error: 'Cloud sync is not configured.' };
+    }
 
-      const nextAccounts = { ...accounts, [key]: account };
-      const next: PersistedAuth = {
-        accounts: nextAccounts,
-        currentUsername: trimmed,
-      };
+    const normalizedEmail = email.trim().toLowerCase();
+    const { data, error } = await supabase.auth.signUp({
+      email: normalizedEmail,
+      password,
+    });
 
-      if (!applyPersist(next)) {
-        return {
-          ok: false,
-          error:
-            'Could not save your account in this browser. Turn off private browsing or allow site storage.',
-        };
-      }
+    if (error) return { ok: false, error: supabaseAuthError(error.message) };
 
-      set(next);
+    const user = data.user;
+    if (!user) {
+      return { ok: false, error: 'Sign up failed. Try again.' };
+    }
+
+    const username = name || normalizedEmail.split('@')[0] || 'Player';
+    await upsertProfile(user.id, { username });
+
+    if (data.session) {
+      applySession(set, data.session, { username, photo_url: null });
       return { ok: true };
-    } catch {
-      return { ok: false, error: authCryptoErrorMessage() };
     }
+
+    return {
+      ok: true,
+      needsEmailConfirmation: true,
+    };
   },
 
-  signIn: async (username, password) => {
-    if (!isAuthCryptoAvailable()) {
-      return { ok: false, error: authCryptoErrorMessage() };
-    }
-
-    const userErr = validateUsername(username);
-    if (userErr) return { ok: false, error: userErr };
-    if (!password) return { ok: false, error: 'Password is required.' };
-
-    const key = normalizeKey(username);
-    const accounts = getAccountsSnapshot(get);
-    const account = accounts[key];
-
-    if (!account) {
+  signIn: async (email, password) => {
+    if (!isSupabaseConfigured) {
       return {
         ok: false,
-        error:
-          'No account with that username on this device. Sign up here first, or use the same browser where you created the account.',
+        error: 'Cloud accounts are not configured on this deployment.',
       };
     }
 
-    try {
-      const valid = await verifyPassword(
-        password,
-        account.passwordHash,
-        account.salt,
-        account.hashVersion ?? 2,
-      );
-      if (!valid) return { ok: false, error: 'Incorrect password.' };
+    const emailErr = validateEmail(email);
+    if (emailErr) return { ok: false, error: emailErr };
+    if (!password) return { ok: false, error: 'Password is required.' };
 
-      const next: PersistedAuth = {
-        accounts,
-        currentUsername: account.username,
-      };
-
-      if (!applyPersist(next)) {
-        return {
-          ok: false,
-          error:
-            'Signed in, but could not save session. Allow site storage in your browser settings.',
-        };
-      }
-
-      set(next);
-      return { ok: true };
-    } catch {
-      return { ok: false, error: authCryptoErrorMessage() };
+    const supabase = getSupabase();
+    if (!supabase) {
+      return { ok: false, error: 'Cloud sync is not configured.' };
     }
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: email.trim().toLowerCase(),
+      password,
+    });
+
+    if (error) return { ok: false, error: supabaseAuthError(error.message) };
+    if (!data.session) {
+      return { ok: false, error: 'Sign in failed. Try again.' };
+    }
+
+    const profile = await loadProfile(data.session.user.id);
+    applySession(set, data.session, profile);
+    return { ok: true };
   },
 
-  signOut: () =>
-    set((st) => {
-      const next = { ...st, currentUsername: null };
-      applyPersist(next);
-      return { currentUsername: null };
-    }),
+  signOut: async () => {
+    const supabase = getSupabase();
+    if (supabase) await supabase.auth.signOut();
+    applySession(set, null);
+  },
 
   updatePhoto: async (file) => {
-    const { currentUsername } = get();
-    if (!currentUsername) return { ok: false, error: 'Not signed in.' };
+    const { userId } = get();
+    if (!userId) return { ok: false, error: 'Not signed in.' };
 
     try {
       const photoDataUrl = await readPhotoFile(file);
-      const key = normalizeKey(currentUsername);
-      const accounts = getAccountsSnapshot(get);
-      const account = accounts[key];
-      if (!account) return { ok: false, error: 'Account not found.' };
-
-      const updated = { ...account, photoDataUrl };
-      const nextAccounts = { ...accounts, [key]: updated };
-      const next = { accounts: nextAccounts, currentUsername };
-
-      if (!applyPersist(next)) {
-        return { ok: false, error: 'Could not save photo. Storage may be full or blocked.' };
-      }
-
-      set((st) => ({ ...st, accounts: nextAccounts }));
+      const result = await upsertProfile(userId, { photo_url: photoDataUrl });
+      if (!result.ok) return { ok: false, error: result.error };
+      set({ photoUrl: photoDataUrl });
       return { ok: true };
     } catch (e) {
       return {
@@ -255,65 +295,33 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const passErr = validatePassword(newPassword);
     if (passErr) return { ok: false, error: passErr };
 
-    const { currentUsername } = get();
-    if (!currentUsername) return { ok: false, error: 'Not signed in.' };
+    const { userId } = get();
+    if (!userId) return { ok: false, error: 'Not signed in.' };
 
-    if (!isAuthCryptoAvailable()) {
-      return { ok: false, error: authCryptoErrorMessage() };
+    const supabase = getSupabase();
+    if (!supabase) {
+      return { ok: false, error: 'Cloud sync is not configured.' };
     }
 
-    const key = normalizeKey(currentUsername);
-    const accounts = getAccountsSnapshot(get);
-    const account = accounts[key];
-    if (!account) return { ok: false, error: 'Account not found.' };
-
-    try {
-      const { hash, salt, version } = await hashPassword(newPassword);
-      const updated = {
-        ...account,
-        passwordHash: hash,
-        salt,
-        hashVersion: version,
-      };
-      const nextAccounts = { ...accounts, [key]: updated };
-      const next = { accounts: nextAccounts, currentUsername };
-
-      if (!applyPersist(next)) {
-        return { ok: false, error: 'Could not save password.' };
-      }
-
-      set((st) => ({ ...st, accounts: nextAccounts }));
-      return { ok: true };
-    } catch {
-      return { ok: false, error: authCryptoErrorMessage() };
-    }
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) return { ok: false, error: supabaseAuthError(error.message) };
+    return { ok: true };
   },
 
-  removePhoto: () =>
-    set((st) => {
-      if (!st.currentUsername) return st;
-      const key = normalizeKey(st.currentUsername);
-      const accounts = getAccountsSnapshot(get);
-      const account = accounts[key];
-      if (!account) return st;
-
-      const updated = { ...account, photoDataUrl: null };
-      const nextAccounts = { ...accounts, [key]: updated };
-      const next = { accounts: nextAccounts, currentUsername: st.currentUsername };
-      applyPersist(next);
-      return { accounts: nextAccounts };
-    }),
+  removePhoto: async () => {
+    const { userId } = get();
+    if (!userId) return;
+    const result = await upsertProfile(userId, { photo_url: null });
+    if (result.ok) set({ photoUrl: null });
+  },
 
   resetAllData: () => {
-    try {
-      localStorage.removeItem(AUTH_LS_KEY);
-    } catch {
-      // ignore
-    }
-    set({ accounts: {}, currentUsername: null });
+    applySession(set, null);
+    const supabase = getSupabase();
+    if (supabase) void supabase.auth.signOut();
   },
 }));
 
 export function useIsSignedIn() {
-  return useAuthStore((s) => s.currentUsername != null);
+  return useAuthStore((s) => s.authReady && s.userId != null);
 }

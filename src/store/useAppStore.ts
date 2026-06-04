@@ -22,7 +22,10 @@ import {
   generateScrambleSync,
   shouldAutoNextScramble,
 } from '../lib/scramble';
+import { scheduleCloudPersist } from '../lib/cloudPersist';
+import { canUseCloudSync, deleteUserState, loadUserState } from '../lib/userStateApi';
 import { appStorageKey, clearAllAppStorageBuckets } from '../lib/storage';
+import { useAuthStore } from './useAuthStore';
 import { bestMs, roundTotalMs, solveToMs } from '../lib/stats';
 import { groupIntoRounds } from '../lib/rounds';
 import { xpForMultiCubeSolve, xpForMultiRoundBonus, xpForSingleSolve } from '../lib/xp/engine';
@@ -179,7 +182,7 @@ type Persisted = {
   xp: XpProfile;
 };
 
-function loadPersisted(): Persisted | null {
+function loadPersistedLocal(): Persisted | null {
   try {
     const raw = localStorage.getItem(appStorageKey());
     if (!raw) return null;
@@ -189,12 +192,21 @@ function loadPersisted(): Persisted | null {
   }
 }
 
-function savePersisted(p: Persisted) {
+function savePersistedLocal(p: Persisted) {
   try {
     localStorage.setItem(appStorageKey(), JSON.stringify({ ...p, dataVersion: 2 }));
   } catch {
     // ignore
   }
+}
+
+function savePersisted(p: Persisted) {
+  const userId = useAuthStore.getState().userId;
+  if (userId && canUseCloudSync()) {
+    scheduleCloudPersist(userId, p);
+    return;
+  }
+  savePersistedLocal(p);
 }
 
 type AppState = Persisted & {
@@ -289,10 +301,30 @@ function syncSessionToEvent(
   return { sessions, scrambleByEvent };
 }
 
-function initialPersisted(): Persisted {
-  const base = loadPersisted();
+function freshPersisted(): Persisted {
+  const d = defaultSettings();
+  const session = makeSetupSession({
+    discipline: d.defaultDiscipline,
+    event: d.defaultEvent,
+    multiEvents: d.defaultDiscipline === 'multi' ? d.defaultMultiEvents : undefined,
+  });
+  return {
+    dataVersion: 2,
+    sessions: [session],
+    currentSessionId: session.id,
+    settings: d,
+    multiSolve:
+      d.defaultDiscipline === 'multi'
+        ? { index: 0, events: [...d.defaultMultiEvents] }
+        : { index: 0, events: [d.defaultEvent] },
+    scrambleByEvent: buildDefaultScrambleMap(),
+    xp: createEmptyXpProfile(),
+  };
+}
+
+function normalizePersisted(base: Persisted): Persisted {
   // Legacy wipe requested: if stored data is from older versions, reset sessions to setup-driven model.
-  if (base && (base as any).dataVersion !== 2) {
+  if ((base as any).dataVersion !== 2) {
     const settings = base?.settings ? normalizeSettings(base.settings) : defaultSettings();
     const xp = (base as any).xp?.version === 1 ? (base as any).xp : createEmptyXpProfile();
     const discipline = settings.defaultDiscipline ?? 'standard';
@@ -318,7 +350,7 @@ function initialPersisted(): Persisted {
     };
   }
 
-  if (base && base.sessions?.length) {
+  if (base.sessions?.length) {
     const sessions = normalizeSessions(base.sessions);
     const cur = sessions.find((s) => s.id === base.currentSessionId);
     const fallback = cur?.event ?? '333';
@@ -339,24 +371,14 @@ function initialPersisted(): Persisted {
     };
   }
 
-  const d = defaultSettings();
-  const session = makeSetupSession({
-    discipline: d.defaultDiscipline,
-    event: d.defaultEvent,
-    multiEvents: d.defaultDiscipline === 'multi' ? d.defaultMultiEvents : undefined,
-  });
-  return {
-    dataVersion: 2,
-    sessions: [session],
-    currentSessionId: session.id,
-    settings: d,
-    multiSolve:
-      d.defaultDiscipline === 'multi'
-        ? { index: 0, events: [...d.defaultMultiEvents] }
-        : { index: 0, events: [d.defaultEvent] },
-    scrambleByEvent: buildDefaultScrambleMap(),
-    xp: createEmptyXpProfile(),
-  };
+  return freshPersisted();
+}
+
+function initialPersisted(): Persisted {
+  if (canUseCloudSync()) return freshPersisted();
+  const base = loadPersistedLocal();
+  if (!base) return freshPersisted();
+  return normalizePersisted(base);
 }
 
 export const useAppStore = create<AppState>((set, get) => {
@@ -896,24 +918,49 @@ export const useAppStore = create<AppState>((set, get) => {
       }),
 
     resetAllData: () => {
+      const userId = useAuthStore.getState().userId;
+      if (userId && canUseCloudSync()) {
+        void deleteUserState(userId);
+      }
       clearAllAppStorageBuckets();
-      const fresh = initialPersisted();
+      const fresh = freshPersisted();
       set({
         ...fresh,
         timer: defaultTimerState(),
         lastSolveId: null,
       });
+      savePersisted(fresh);
       queueMicrotask(() => get().hydrateOfficialScrambles());
     },
 
     rehydrateFromStorage: () => {
-      const fresh = initialPersisted();
-      set({
-        ...fresh,
-        timer: defaultTimerState(),
-        lastSolveId: null,
-      });
-      queueMicrotask(() => get().hydrateOfficialScrambles());
+      const userId = useAuthStore.getState().userId;
+
+      const applyFresh = (fresh: Persisted) => {
+        set({
+          ...fresh,
+          timer: defaultTimerState(),
+          lastSolveId: null,
+        });
+        queueMicrotask(() => get().hydrateOfficialScrambles());
+      };
+
+      if (userId && canUseCloudSync()) {
+        void loadUserState(userId).then((base) => {
+          const fresh = base
+            ? normalizePersisted(base as Persisted)
+            : freshPersisted();
+          applyFresh(fresh);
+        });
+        return;
+      }
+
+      if (canUseCloudSync()) {
+        applyFresh(freshPersisted());
+        return;
+      }
+
+      applyFresh(initialPersisted());
     },
 
     refreshOfficialScramble: (event) => {

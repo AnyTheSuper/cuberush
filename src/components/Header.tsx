@@ -14,15 +14,11 @@ export function Header({
   const [authOpen, setAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>('signin');
 
-  const currentUsername = useAuthStore((s) => s.currentUsername);
-  const accounts = useAuthStore((s) => s.accounts);
-  const account =
-    currentUsername != null
-      ? accounts[currentUsername.trim().toLowerCase()]
-      : null;
+  const getCurrentAccount = useAuthStore((s) => s.getCurrentAccount);
+  const account = getCurrentAccount();
 
   const baseUrl = import.meta.env.BASE_URL;
-  const signedIn = currentUsername != null;
+  const signedIn = account != null;
 
   const openAuth = (mode: AuthMode) => {
     setAuthMode(mode);

@@ -1,5 +1,4 @@
-import { useEffect, useState } from 'react';
-import { authCryptoErrorMessage, isAuthCryptoAvailable } from '../lib/auth';
+import { useState } from 'react';
 import { useAuthStore } from '../store/useAuthStore';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
@@ -20,24 +19,23 @@ export function AuthModal({
 }) {
   const signUp = useAuthStore((s) => s.signUp);
   const signIn = useAuthStore((s) => s.signIn);
-  const refreshFromStorage = useAuthStore((s) => s.refreshFromStorage);
 
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const isSignUp = mode === 'signup';
   const title = isSignUp ? 'Sign up' : 'Sign in';
 
-  useEffect(() => {
-    if (open) refreshFromStorage();
-  }, [open, refreshFromStorage]);
-
   const resetForm = () => {
-    setUsername('');
+    setEmail('');
+    setDisplayName('');
     setPassword('');
     setError(null);
+    setMessage(null);
   };
 
   const handleClose = () => {
@@ -48,27 +46,31 @@ export function AuthModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-
-    if (!isAuthCryptoAvailable()) {
-      setError(authCryptoErrorMessage());
-      return;
-    }
-
+    setMessage(null);
     setBusy(true);
     try {
       const result = isSignUp
-        ? await signUp(username, password)
-        : await signIn(username, password);
+        ? await signUp(email, password, displayName)
+        : await signIn(email, password);
 
       if (!result.ok) {
         setError(result.error);
         return;
       }
 
+      if (isSignUp && 'needsEmailConfirmation' in result && result.needsEmailConfirmation) {
+        setMessage(
+          'Account created. Check your email to confirm, then sign in here.',
+        );
+        setPassword('');
+        onSwitchMode('signin');
+        return;
+      }
+
       resetForm();
       onClose();
     } catch {
-      setError(authCryptoErrorMessage());
+      setError('Something went wrong. Try again.');
     } finally {
       setBusy(false);
     }
@@ -79,27 +81,40 @@ export function AuthModal({
       <form className="space-y-4" onSubmit={handleSubmit}>
         <p className="text-sm text-fg-muted">
           {isSignUp
-            ? 'Create an account with a username and password.'
-            : 'Enter your username and password to continue.'}
-        </p>
-        <p className="text-xs text-fg-subtle">
-          Accounts are saved only on this device and this website URL. Sign up on
-          the live site if you have not already.
+            ? 'Create a cloud account with your email and password.'
+            : 'Sign in to load your synced timer data.'}
         </p>
 
         <div>
-          <label htmlFor="auth-username" className="text-sm font-medium text-fg">
-            Username
+          <label htmlFor="auth-email" className="text-sm font-medium text-fg">
+            Email
           </label>
           <input
-            id="auth-username"
+            id="auth-email"
+            type="email"
             className="mt-2 w-full rounded-lg border border-stroke bg-bg-panel2 px-3 py-2 text-sm text-fg outline-none focus:border-accent/60"
-            value={username}
-            autoComplete="username"
-            placeholder="your_name"
-            onChange={(e) => setUsername(e.target.value)}
+            value={email}
+            autoComplete="email"
+            placeholder="you@example.com"
+            onChange={(e) => setEmail(e.target.value)}
           />
         </div>
+
+        {isSignUp && (
+          <div>
+            <label htmlFor="auth-display-name" className="text-sm font-medium text-fg">
+              Display name <span className="text-fg-subtle">(optional)</span>
+            </label>
+            <input
+              id="auth-display-name"
+              className="mt-2 w-full rounded-lg border border-stroke bg-bg-panel2 px-3 py-2 text-sm text-fg outline-none focus:border-accent/60"
+              value={displayName}
+              autoComplete="nickname"
+              placeholder="your_name"
+              onChange={(e) => setDisplayName(e.target.value)}
+            />
+          </div>
+        )}
 
         <PasswordInput
           id="auth-password"
@@ -110,6 +125,11 @@ export function AuthModal({
           onChange={setPassword}
         />
 
+        {message && (
+          <p className="rounded-lg border border-good/40 bg-good/10 px-3 py-2 text-sm text-good">
+            {message}
+          </p>
+        )}
         {error && (
           <p className="rounded-lg border border-bad/40 bg-bad/10 px-3 py-2 text-sm text-bad">
             {error}
@@ -132,6 +152,7 @@ export function AuthModal({
             className="font-semibold text-purple-light hover:text-fg"
             onClick={() => {
               setError(null);
+              setMessage(null);
               onSwitchMode(isSignUp ? 'signin' : 'signup');
             }}
           >
