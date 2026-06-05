@@ -2,11 +2,80 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>CubeRush</title>
+    <meta name="description" content="%SITE_DESCRIPTION%" />
+    <meta name="keywords" content="%SITE_KEYWORDS%" />
+    <meta name="author" content="CubeRush" />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="theme-color" content="#8b5cf6" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="application-name" content="CubeRush" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="CubeRush" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+    <title>%SITE_TITLE%</title>
+    <link rel="canonical" href="%SITE_URL_SLASH%" />
+
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/cuberush-logo.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="CubeRush" />
+    <meta property="og:title" content="%SITE_TITLE%" />
+    <meta property="og:description" content="%SITE_DESCRIPTION%" />
+    <meta property="og:url" content="%SITE_URL_SLASH%" />
+    <meta property="og:image" content="%OG_IMAGE%" />
+    <meta property="og:image:alt" content="CubeRush logo — Rubik's cube timer app" />
+    <meta property="og:locale" content="en_US" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="%SITE_TITLE%" />
+    <meta name="twitter:description" content="%SITE_DESCRIPTION%" />
+    <meta name="twitter:image" content="%OG_IMAGE%" />
+    <meta name="twitter:image:alt" content="CubeRush logo — Rubik's cube timer app" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "CubeRush",
+        "alternateName": "CubeRush Rubik's Cube Timer",
+        "url": "%SITE_URL_SLASH%",
+        "description": "%SITE_DESCRIPTION%",
+        "image": "%OG_IMAGE%",
+        "applicationCategory": "GameApplication",
+        "operatingSystem": "Any",
+        "browserRequirements": "Requires JavaScript. Works in modern browsers.",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        },
+        "featureList": [
+          "WCA official scrambles",
+          "Session statistics and Ao5",
+          "Progression charts",
+          "Guest mode without an account",
+          "Cloud sync with sign-up"
+        ]
+      }
+    </script>
   </head>
   <body>
+    <noscript>
+      <main style="max-width: 40rem; margin: 2rem auto; padding: 0 1rem; font-family: system-ui, sans-serif; line-height: 1.5;">
+        <h1>CubeRush — Free Rubik&rsquo;s Cube Timer</h1>
+        <p>
+          CubeRush is a free online speedcubing timer with official WCA scrambles,
+          session stats, Ao5 averages, progression charts, and guest mode so you can
+          try it without creating an account.
+        </p>
+        <p>Please enable JavaScript to use the timer.</p>
+      </main>
+    </noscript>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

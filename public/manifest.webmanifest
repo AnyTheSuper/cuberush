@@ -1,0 +1,23 @@
+{
+  "name": "CubeRush — Rubik's Cube Timer",
+  "short_name": "CubeRush",
+  "description": "Free online Rubik's cube timer with WCA scrambles, stats, and guest mode.",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#090b16",
+  "theme_color": "#8b5cf6",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "cuberush-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

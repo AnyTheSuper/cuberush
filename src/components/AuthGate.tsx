@@ -30,14 +30,16 @@ export function AuthGate() {
       <div className="w-full max-w-md rounded-xl2 border border-purple/30 bg-bg-panel p-8 text-center shadow-purple">
         <img
           src={`${baseUrl}cuberush-logo.png`}
-          alt="CubeRush"
+          alt="CubeRush — free online Rubik's cube timer"
           className="mx-auto h-16 w-auto object-contain"
         />
-        <h1 className="mt-6 text-xl font-semibold text-fg">Welcome to CubeRush</h1>
+        <h1 className="mt-6 text-xl font-semibold text-fg">
+          Free Rubik&rsquo;s Cube Timer
+        </h1>
         <p className="mt-2 text-sm text-fg-muted">
           {cloudAvailable
-            ? 'Sign in to sync your times across devices, or try the timer locally as a guest.'
-            : 'Try the full timer experience on this device — no account required.'}
+            ? 'WCA scrambles, session stats, and guest mode. Sign in to sync across devices, or try it locally without an account.'
+            : 'WCA scrambles, session stats, and progression charts — try the full timer on this device with no account.'}
         </p>
 
         <div className="mt-8 flex flex-col gap-3">

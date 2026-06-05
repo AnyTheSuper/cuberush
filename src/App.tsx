@@ -61,7 +61,8 @@ export default function App() {
             <SetupCard />
           </aside>
 
-          <main className="flex flex-col">
+          <main className="flex flex-col" aria-label="Rubik's cube timer">
+            <h1 className="sr-only">CubeRush — Rubik&rsquo;s cube timer</h1>
             <TopBar />
 
             <div className="overflow-hidden rounded-xl2 border border-purple/30 shadow-purple">
