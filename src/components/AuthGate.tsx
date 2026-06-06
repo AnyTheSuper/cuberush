@@ -38,15 +38,18 @@ export function AuthGate() {
         </h1>
         <p className="mt-2 text-sm text-fg-muted">
           {cloudAvailable
-            ? 'WCA scrambles, session stats, and guest mode. Sign in to sync across devices, or try it locally without an account.'
-            : 'WCA scrambles, session stats, and progression charts — try the full timer on this device with no account.'}
+            ? 'Sign in to sync your times across devices, or jump straight into the timer.'
+            : 'WCA scrambles, session stats, and progression charts — start timing on this device.'}
         </p>
 
         <div className="mt-8 flex flex-col gap-3">
+          <Button variant="purple" className="w-full" onClick={handleGuest}>
+            Start timing
+          </Button>
           {cloudAvailable && (
             <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
               <Button
-                variant="purple"
+                variant="ghost"
                 className="w-full sm:w-auto"
                 onClick={() => openAuth('signin')}
               >
@@ -61,18 +64,7 @@ export function AuthGate() {
               </Button>
             </div>
           )}
-          <Button
-            variant={cloudAvailable ? 'ghost' : 'purple'}
-            className="w-full"
-            onClick={handleGuest}
-          >
-            Continue as guest
-          </Button>
         </div>
-
-        <p className="mt-6 text-xs text-fg-subtle">
-          Guest mode saves data in this browser only. Accounts sync to the cloud.
-        </p>
       </div>
 
       <AuthModal

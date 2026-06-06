@@ -1,6 +1,7 @@
 const AUTH_LS_KEY = 'cube-timer:auth:v1';
 const APP_LS_PREFIX = 'cube-timer:v1';
 const GUEST_MODE_KEY = 'cube-timer:guest-mode:v1';
+const AUTH_SCREEN_KEY = 'cube-timer:auth-screen:v1';
 
 export function isGuestMode(): boolean {
   try {
@@ -14,6 +15,24 @@ export function setGuestMode(enabled: boolean) {
   try {
     if (enabled) localStorage.setItem(GUEST_MODE_KEY, '1');
     else localStorage.removeItem(GUEST_MODE_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+/** User chose the sign-in screen (sign out or leave guest) — skip auto guest. */
+export function wantsAuthScreen(): boolean {
+  try {
+    return localStorage.getItem(AUTH_SCREEN_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function setWantsAuthScreen(enabled: boolean) {
+  try {
+    if (enabled) localStorage.setItem(AUTH_SCREEN_KEY, '1');
+    else localStorage.removeItem(AUTH_SCREEN_KEY);
   } catch {
     // ignore
   }

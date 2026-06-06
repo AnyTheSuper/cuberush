@@ -5,7 +5,12 @@ import {
   validatePassword,
   validateUsername,
 } from '../lib/auth';
-import { isGuestMode, setGuestMode } from '../lib/storage';
+import {
+  isGuestMode,
+  setGuestMode,
+  setWantsAuthScreen,
+  wantsAuthScreen,
+} from '../lib/storage';
 import { getSupabase, isSupabaseConfigured } from '../lib/supabaseClient';
 
 export type AccountRecord = {
@@ -94,23 +99,50 @@ async function upsertProfile(
   return { ok: true as const };
 }
 
+function enterGuestMode(set: (partial: Partial<AuthState>) => void) {
+  setGuestMode(true);
+  setWantsAuthScreen(false);
+  set({
+    isGuest: true,
+    userId: null,
+    email: null,
+    displayName: null,
+    photoUrl: null,
+  });
+}
+
 function applySession(
   set: (partial: Partial<AuthState>) => void,
   session: { user: { id: string; email?: string | null } } | null,
   profile?: { username: string | null; photo_url: string | null } | null,
 ) {
   if (!session?.user) {
-    set({
-      userId: null,
-      email: null,
-      displayName: null,
-      photoUrl: null,
-      isGuest: isGuestMode(),
-    });
+    if (isGuestMode()) {
+      set({
+        userId: null,
+        email: null,
+        displayName: null,
+        photoUrl: null,
+        isGuest: true,
+      });
+      return;
+    }
+    if (wantsAuthScreen()) {
+      set({
+        userId: null,
+        email: null,
+        displayName: null,
+        photoUrl: null,
+        isGuest: false,
+      });
+      return;
+    }
+    enterGuestMode(set);
     return;
   }
 
   setGuestMode(false);
+  setWantsAuthScreen(false);
   const email = session.user.email ?? null;
   set({
     userId: session.user.id,
@@ -133,6 +165,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   continueAsGuest: () => {
     setGuestMode(true);
+    setWantsAuthScreen(false);
     const supabase = getSupabase();
     if (supabase) void supabase.auth.signOut();
     set({
@@ -147,6 +180,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   exitGuest: () => {
     setGuestMode(false);
+    setWantsAuthScreen(true);
     set({
       isGuest: false,
       userId: null,
@@ -159,7 +193,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   initAuth: () => {
     const supabase = getSupabase();
     if (!supabase) {
-      set({ authReady: true, isGuest: isGuestMode() });
+      if (isGuestMode()) {
+        set({ isGuest: true });
+      } else if (wantsAuthScreen()) {
+        set({ isGuest: false });
+      } else {
+        enterGuestMode(set);
+      }
+      set({ authReady: true });
       return () => {};
     }
 
@@ -302,6 +343,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   signOut: async () => {
     setGuestMode(false);
+    setWantsAuthScreen(true);
     const supabase = getSupabase();
     if (supabase) await supabase.auth.signOut();
     set({
@@ -357,15 +399,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   resetAllData: () => {
     setGuestMode(false);
+    setWantsAuthScreen(false);
     const supabase = getSupabase();
     if (supabase) void supabase.auth.signOut();
-    set({
-      isGuest: false,
-      userId: null,
-      email: null,
-      displayName: null,
-      photoUrl: null,
-    });
+    enterGuestMode(set);
   },
 }));
 

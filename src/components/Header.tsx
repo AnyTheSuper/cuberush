@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { useAppStore } from '../store/useAppStore';
+import { isSupabaseConfigured } from '../lib/supabaseClient';
 import { useAuthStore } from '../store/useAuthStore';
 import { AuthModal, type AuthMode } from './AuthModal';
 import { CubeRulesModal } from './CubeRulesModal';
@@ -17,8 +17,6 @@ export function Header({
 
   const getCurrentAccount = useAuthStore((s) => s.getCurrentAccount);
   const account = getCurrentAccount();
-  const isGuest = useAuthStore((s) => s.isGuest);
-  const exitGuest = useAuthStore((s) => s.exitGuest);
   const signOut = useAuthStore((s) => s.signOut);
 
   const baseUrl = import.meta.env.BASE_URL;
@@ -42,15 +40,6 @@ export function Header({
           </a>
 
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-            {isGuest && (
-              <span className="inline-flex items-center gap-2 rounded-lg border border-purple/40 bg-purple/15 px-2.5 py-1.5 text-xs font-semibold text-purple-light">
-                <span className="grid h-7 w-7 place-items-center rounded-full border border-purple/30 bg-bg-inset text-sm">
-                  G
-                </span>
-                <span className="hidden sm:inline">Guest</span>
-              </span>
-            )}
-
             {signedIn && account && (
               <button
                 type="button"
@@ -87,7 +76,7 @@ export function Header({
               <SettingsIcon />
             </HeaderIconButton>
 
-            {!signedIn && (
+            {!signedIn && isSupabaseConfigured && (
               <>
                 <HeaderIconButton label="Sign in" onClick={() => openAuth('signin')}>
                   <span>Sign in</span>
@@ -95,24 +84,10 @@ export function Header({
                 <button
                   type="button"
                   onClick={() => openAuth('signup')}
-                  className="hidden rounded-lg bg-btn-purple px-2.5 py-2 text-xs font-semibold text-white shadow-purple transition hover:brightness-110 sm:inline sm:px-3 sm:text-sm"
+                  className="rounded-lg bg-btn-purple px-2.5 py-2 text-xs font-semibold text-white shadow-purple transition hover:brightness-110 sm:px-3 sm:text-sm"
                 >
                   Sign up
                 </button>
-                {isGuest && (
-                  <HeaderIconButton
-                    label="Leave guest mode"
-                    onClick={() => {
-                      exitGuest();
-                      queueMicrotask(() =>
-                        useAppStore.getState().rehydrateFromStorage(),
-                      );
-                    }}
-                  >
-                    <span className="hidden sm:inline">Exit guest</span>
-                    <span className="sm:hidden">Exit</span>
-                  </HeaderIconButton>
-                )}
               </>
             )}
 
